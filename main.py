@@ -1,6 +1,3 @@
-# Entry Point
-
-
 import argparse
 import os
 from PIL import Image
