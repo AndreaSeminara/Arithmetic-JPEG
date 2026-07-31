@@ -17,8 +17,10 @@ def main(image_path):
     img = Image.open(image_path)
 
     altezza, larghezza = img.size
-    print(f"Dimensioni dell'immagine: {larghezza}x{altezza}")
     print(f"Immagine caricata con successo: {image_path}")
+    print(
+        f"Info Immagine: Dimensioni: {larghezza}x{altezza}, Formato: {img.format}, Colore: {img.mode}"
+    )
 
 
 if __name__ == "__main__":
