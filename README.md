@@ -7,5 +7,25 @@ An educational JPEG compressor comparing the standard Huffman baseline with Stat
 ```
 arithmetic_jpeg/
 │
-├── main.py # Entry point
+├── main.py # Access point
+│
+├── preprocessing/ # Elaborazione dell'immagine
+│   ├── __init__.py
+│   ├── pipeline.py # Avvia la pipeline JPEG una volta ricevuta un'immagine
+│   │
+│   └── steps/ # Step della pipeline
+│       ├── __init__.py
+│       ├── color.py        # Step 1: Conversione RGB <-> YCbCr (se necessaria)
+│       ├── blocking.py     # Step 2: Divisione in blocchi 8x8
+│       ├── dct.py          # Step 3: Trasformata Discreta del Coseno
+│       ├── quantizer.py    # Step 4: Quantizzazione
+│       └── zigzag.py       # Step 5: Scanning Zig Zag
+│
+└── encoding/ # Codifiche
+│   ├── __init__.py
+│   ├── encoder.py       # Access Point per gestire quale algoritmo usare
+│   └── coders/           # Algoritmi di Codifica
+│       ├── __init__.py
+│       ├── base.py                # Classe astratta per i codificatori
+│       └── huffman.py             # Huffman
 ```
