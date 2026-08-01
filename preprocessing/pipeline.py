@@ -77,6 +77,6 @@ def run_pipeline(img, grayscale: bool = False, method: str = "all"):
 
     compressed_stream = encode_blocks(processed_blocks_by_channel, method=method)
 
-    print(f"\nCodifica completata con successo : {compressed_stream[:50]}")
+    print(f"\nCodifica completata con successo : {compressed_stream[:20]}")
 
     return None

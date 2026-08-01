@@ -41,12 +41,10 @@ def _encode_single_method(blocks_by_channel: dict, method: str) -> bytes:
 
     full_compressed_stream = b""
 
-    # Iteriamo sul dizionario dei canali
+    # Itero su ciascun canale
     for channel_name, blocks in blocks_by_channel.items():
-        # Impostiamo is_luma a True solo se il canale è 'Y'
         is_luma = channel_name == "Y"
 
-        # Aggiungiamo i byte di questo canale al flusso totale
         full_compressed_stream += encoder.encode(blocks, is_luma=is_luma)
 
     return full_compressed_stream

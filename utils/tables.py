@@ -5,7 +5,7 @@ Tabelle di codifica standard JPEG come definite in https://www.w3.org/Graphics/J
 import numpy as np
 
 # =====================================================================
-#  TABELLE DI QUANTIZZAZIONE (ITU-T T.81 - Annex K.1)
+#  TABELLE DI QUANTIZZAZIONE (Standard T.81)
 # =====================================================================
 
 # Tabella di quantizzazione standard JPEG per la Luminanza (Y)
@@ -39,7 +39,7 @@ STD_CHROMA_QMAT = np.array(
 )
 
 # =====================================================================
-#  TABELLE DI HUFFMAN (ITU-T T.81 - Annex K.3 - K.6)
+#  TABELLE DI HUFFMAN (Standard T.81)
 # =====================================================================
 
 # --- LUMINANZA ---

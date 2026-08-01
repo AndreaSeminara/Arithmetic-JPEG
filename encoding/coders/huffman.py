@@ -17,10 +17,10 @@ from .base import EntropyEncoder
 
 def build_huffman_dict(bits: List[int], huffval: List[int]):
     """
-    Algoritmo T.81 Annex C: Genera il dizionario dei codici a partire da BITS e HUFFVAL.
+    Algoritmo Standard T.81
     Restituisce un dizionario { valore: "codice_binario_stringa" }.
     """
-    # Controllo di integrità: la somma delle lunghezze deve uguagliare il numero di foglie
+    # La somma delle lunghezze deve uguagliare il numero di foglie
     if sum(bits) != len(huffval):
         raise ValueError(
             f"Incoerenza Tabelle Huffman: BITS dichiara {sum(bits)} codici, "
@@ -46,7 +46,7 @@ class HuffmanEncoder(EntropyEncoder):
     def __init__(self):
         self.bit_string = ""
 
-        # Pre-generazione in RAM dei 4 dizionari di codifica
+        # Pre-generazione dei 4 dizionari di codifica
         self.dc_luma_table = build_huffman_dict(STD_DC_LUMA_BITS, STD_DC_LUMA_VALS)
         self.ac_luma_table = build_huffman_dict(STD_AC_LUMA_BITS, STD_AC_LUMA_VALS)
         self.dc_chroma_table = build_huffman_dict(
@@ -60,7 +60,7 @@ class HuffmanEncoder(EntropyEncoder):
         self.bit_string = ""
         prev_dc = 0
 
-        # Selezione dinamica delle tabelle in base al tipo di canale
+        # Selezione delle tabelle in base al tipo di canale
         dc_table = self.dc_luma_table if is_luma else self.dc_chroma_table
         ac_table = self.ac_luma_table if is_luma else self.ac_chroma_table
 
@@ -101,9 +101,9 @@ class HuffmanEncoder(EntropyEncoder):
 
     def _get_category_and_bits(self, value: int) -> Tuple[int, str]:
         """
-        Implementa le Table F.1 e F.2 del T.81.
-        Restituisce la categoria di grandezza (Size) e la rappresentazione
-        in bit (VLI) del coefficiente.
+        Implementa le Tabelle dello standard T.81.
+        Restituisce la Size (quanti bit servono) e la rappresentazione
+        in bit (il valore vero e proprio) del coefficiente.
         """
         if value == 0:
             return 0, ""
@@ -124,10 +124,9 @@ class HuffmanEncoder(EntropyEncoder):
 
     def _pack_bits_to_bytes(self) -> bytes:
         """
-        Converte la stringa interna di bit in un oggetto bytes di Python.
-        Gestisce il padding finale con '1' (byte-alignment) come previsto dal T.81.
+        Converte la stringa di bit in un oggetto 'bytes'.
+        Gestisce il padding finale con '1' come previsto dallo standard T.81.
         """
-        # Aggiunge bit '1' per riempire l'ultimo byte
         remainder = len(self.bit_string) % 8
         if remainder != 0:
             self.bit_string += "1" * (8 - remainder)
