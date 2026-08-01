@@ -9,11 +9,11 @@ arithmetic_jpeg/
 │
 ├── main.py # Access point
 │
-├── preprocessing/ # Elaborazione dell'immagine
+├── preprocessing/      # Elaborazione dell'immagine
 │   ├── __init__.py
-│   ├── pipeline.py # Avvia la pipeline JPEG una volta ricevuta un'immagine
+│   ├── pipeline.py     # Avvia la pipeline JPEG una volta ricevuta un'immagine
 │   │
-│   └── steps/ # Step della pipeline
+│   └── steps/          # Step della pipeline
 │       ├── __init__.py
 │       ├── color.py        # Step 1: Conversione RGB <-> YCbCr (se necessaria)
 │       ├── blocking.py     # Step 2: Divisione in blocchi 8x8
@@ -21,11 +21,16 @@ arithmetic_jpeg/
 │       ├── quantizer.py    # Step 4: Quantizzazione
 │       └── zigzag.py       # Step 5: Scanning Zig Zag
 │
-└── encoding/ # Codifiche
+└── encoding/           # Codifiche
 │   ├── __init__.py
-│   ├── encoder.py       # Access Point per gestire quale algoritmo usare
-│   └── coders/           # Algoritmi di Codifica
+│   ├── encoder.py      # Access Point per gestire quale algoritmo usare
+│   │
+│   └── coders/         # Algoritmi di Codifica
 │       ├── __init__.py
-│       ├── base.py                # Classe astratta per i codificatori
-│       └── huffman.py             # Huffman
+│       ├── base.py         # Classe astratta per i codificatori
+│       └── huffman.py      # Huffman
+└── utils/              # Utility Generale
+│   ├── __init__.py
+│   ├── modes.py            # Variabile Globale per Modalità d'Uso del Comando
+│   ├── tables.py           # Tabelle dello Standard T.81 per Huffman e Quantizzazione
 ```
