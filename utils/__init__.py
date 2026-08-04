@@ -11,3 +11,4 @@ from .tables import (
     STD_AC_CHROMA_BITS,
     STD_AC_CHROMA_VALS,
 )
+from .tables import ZIGZAG_INDEX

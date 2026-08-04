@@ -1,23 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import List
 import numpy as np
 
 
 class EntropyEncoder(ABC):
-    """
-    Interfaccia astratta per i codificatori entropici JPEG.
-    Tutti i codificatori specifici (Huffman, Arithmetic, QM) devono implementare questa interfaccia.
-    """
+    """Definisce la base dei codificatori entropici JPEG"""
 
     @abstractmethod
-    def encode(self, blocks: List[np.ndarray]) -> bytes:
-        """
-        Riceve una lista di blocchi 8x8 e restituisce il flusso di byte compresso.
+    def encode(self, blocks: list[np.ndarray]) -> bytes:
+        """Restituisce i byte compressi dei blocchi in input"""
+        pass
 
-        Args:
-            blocks: Lista di array NumPy 1D da 64 elementi.
 
-        Returns:
-            bytes: Flusso binario compresso pronto da scrivere su file.
-        """
+class EntropyDecoder(ABC):
+    @abstractmethod
+    def decode(
+        self, byte_stream: bytes, num_blocks: int, is_luma: bool = True
+    ) -> tuple[list[np.ndarray], int]:
+        """Restituisce i blocchi decodificati e i byte consumati"""
         pass

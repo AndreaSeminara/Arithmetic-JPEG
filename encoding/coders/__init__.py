@@ -1,2 +1,1 @@
-# coders/__init__.py
-from .huffman import HuffmanEncoder
+from .huffman import HuffmanEncoder, HuffmanDecoder

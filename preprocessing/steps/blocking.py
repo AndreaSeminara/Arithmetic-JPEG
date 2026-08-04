@@ -3,17 +3,10 @@ import numpy as np
 DIM_BLOCK = 8
 
 
-def get_nxn_blocks(channel_data, block_size=DIM_BLOCK):
-    """
-    Divide un canale di immagine in blocchi nxn.
-
-    Args:
-        channel_data (np.ndarray): Canale dell'immagine da dividere in blocchi.
-        block_size (int): Dimensione dei blocchi (default: 8).
-
-    Returns:
-        list: Lista di blocchi nxn.
-    """
+def get_nxn_blocks(
+    channel_data: np.ndarray, block_size: int = DIM_BLOCK
+) -> tuple[list[np.ndarray], int, int]:
+    """Divide un canale in blocchi nxn"""
     if channel_data.ndim != 2:
         raise ValueError("Il canale dell'immagine deve essere una matrice 2D.")
 
@@ -32,17 +25,26 @@ def get_nxn_blocks(channel_data, block_size=DIM_BLOCK):
     return blocks, height - orig_height, width - orig_width
 
 
-def padding(channel_data, block_size=DIM_BLOCK):
-    """
-    Applica il padding a un canale di immagine per garantire che le dimensioni siano multipli di block_size.
+def reassemble_blocks(
+    blocks: list[np.ndarray], image_shape: tuple[int, int], pad_h: int, pad_w: int
+) -> np.ndarray:
+    """Ricostruisce l'immagine e rimuove il padding"""
+    h, w = image_shape
+    padded_h, padded_w = h + pad_h, w + pad_w
 
-    Args:
-        channel_data (np.ndarray): Canale dell'immagine a cui applicare il padding.
-        block_size (int): Dimensione dei blocchi (default: 8).
+    reconstructed = np.zeros((padded_h, padded_w), dtype=np.float32)
 
-    Returns:
-        np.ndarray: Canale dell'immagine con padding applicato.
-    """
+    idx = 0
+    for i in range(0, padded_h, 8):
+        for j in range(0, padded_w, 8):
+            reconstructed[i : i + 8, j : j + 8] = blocks[idx]
+            idx += 1
+
+    return reconstructed[:h, :w]
+
+
+def padding(channel_data: np.ndarray, block_size: int = DIM_BLOCK) -> np.ndarray:
+    """Aggiunge padding per ottenere dimensioni multiple di block_size"""
     height, width = channel_data.shape
     new_height = (height + block_size - 1) // block_size * block_size
     new_width = (width + block_size - 1) // block_size * block_size

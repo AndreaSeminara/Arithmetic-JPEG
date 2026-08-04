@@ -1,21 +1,14 @@
+import numpy as np
 from .coders.huffman import HuffmanEncoder
 
 # from .coders.arithmetic import ArithmeticEncoder
 # from .coders.qm import QMCoder
 
 
-def encode_blocks(blocks_by_channel: dict, method: str = "all"):
-    """
-    Codifica i blocchi di dati separati per canale.
-
-    Args:
-        blocks_by_channel (dict): Dizionario {nome_canale: lista_blocchi}
-                                  es. {'Y': [...], 'Cb': [...], 'Cr': [...]}
-        method (str): Metodo di compressione ("huffman", "arithmetic", "qm" o "all").
-
-    Returns:
-        bytes o dict: Flusso di dati compresso o dizionario di flussi.
-    """
+def encode_blocks(
+    blocks_by_channel: dict[str, list[np.ndarray]], method: str = "all"
+) -> bytes | dict[str, bytes]:
+    """Restituisce il flusso compresso dei blocchi per canale"""
     if method == "all":
         return {
             "huffman": _encode_single_method(blocks_by_channel, "huffman"),
@@ -26,10 +19,10 @@ def encode_blocks(blocks_by_channel: dict, method: str = "all"):
         return _encode_single_method(blocks_by_channel, method)
 
 
-def _encode_single_method(blocks_by_channel: dict, method: str) -> bytes:
-    """
-    Inizializza l'encoder corretto e processa i canali in sequenza.
-    """
+def _encode_single_method(
+    blocks_by_channel: dict[str, list[np.ndarray]], method: str
+) -> bytes:
+    """Usa l'encoder scelto per codificare i blocchi e restituire il flusso compresso"""
     if method == "huffman":
         encoder = HuffmanEncoder()
     # elif method == "arithmetic":
@@ -41,7 +34,6 @@ def _encode_single_method(blocks_by_channel: dict, method: str) -> bytes:
 
     full_compressed_stream = b""
 
-    # Itero su ciascun canale
     for channel_name, blocks in blocks_by_channel.items():
         is_luma = channel_name == "Y"
 

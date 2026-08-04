@@ -1,28 +1,23 @@
 import numpy as np
+from utils import ZIGZAG_INDEX
 
-ZIGZAG_INDICES = np.array([
-     0,  1,  8, 16,  9,  2,  3, 10,
-    17, 24, 32, 25, 18, 11,  4,  5,
-    12, 19, 26, 33, 40, 48, 41, 34,
-    27, 20, 13,  6,  7, 14, 21, 28,
-    35, 42, 49, 56, 57, 50, 43, 36,
-    29, 22, 15, 23, 30, 37, 44, 51,
-    58, 59, 52, 45, 38, 31, 39, 46,
-    53, 60, 61, 54, 47, 55, 62, 63
-])
 
-def zigzag_scan(block):
-    """
-    Esegue lo Zig-Zag scan su un blocco 8x8.
+def zigzag_scan(block_2d: np.ndarray) -> np.ndarray:
+    """Appiattisce un blocco 8x8 in un array tramite una scansione Zig-Zag"""
+    block_flat = block_2d.flatten()
+    block_1d = np.zeros(64, dtype=np.float32)
 
-    Args:
-        block (np.ndarray): Blocco 8x8 da scansionare.
-    Returns:
-        np.ndarray: Array 1D contenente gli elementi del blocco in ordine Zig-Zag.
-    """
-    if block.shape != (8, 8):
-        raise ValueError("Il blocco deve essere di dimensione 8x8.")
+    for i in range(64):
+        block_1d[i] = block_flat[ZIGZAG_INDEX[i]]
 
-    zigzag_array = block.ravel()[ZIGZAG_INDICES]
+    return block_1d
 
-    return zigzag_array
+
+def inverse_zigzag_scan(block_1d: np.ndarray) -> np.ndarray:
+    """Ricostruisce un blocco 8x8 partendo da un array che segue l'ordine Zig-Zag"""
+    block_flat = np.zeros(64, dtype=np.float32)
+
+    for i in range(64):
+        block_flat[ZIGZAG_INDEX[i]] = block_1d[i]
+
+    return block_flat.reshape((8, 8))

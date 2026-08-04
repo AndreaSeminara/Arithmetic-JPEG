@@ -5,10 +5,26 @@ Tabelle di codifica standard JPEG come definite in https://www.w3.org/Graphics/J
 import numpy as np
 
 # =====================================================================
-#  TABELLE DI QUANTIZZAZIONE (Standard T.81)
+#  TABELLE DI LOOKUP
 # =====================================================================
 
-# Tabella di quantizzazione standard JPEG per la Luminanza (Y)
+ZIGZAG_INDEX = np.array([
+     0,  1,  8, 16,  9,  2,  3, 10,
+    17, 24, 32, 25, 18, 11,  4,  5,
+    12, 19, 26, 33, 40, 48, 41, 34,
+    27, 20, 13,  6,  7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63
+])
+
+
+# =====================================================================
+#  TABELLE DI QUANTIZZAZIONE
+# =====================================================================
+
+# Luminanza (Y)
 STD_LUMA_QMAT = np.array(
     [
         [16, 11, 10, 16, 24, 40, 51, 61],
@@ -23,7 +39,7 @@ STD_LUMA_QMAT = np.array(
     dtype=np.float32,
 )
 
-# Tabella di quantizzazione standard JPEG per la Crominanza (Cb, Cr)
+# Crominanza (Cb, Cr)
 STD_CHROMA_QMAT = np.array(
     [
         [17, 18, 24, 47, 99, 99, 99, 99],
@@ -39,16 +55,16 @@ STD_CHROMA_QMAT = np.array(
 )
 
 # =====================================================================
-#  TABELLE DI HUFFMAN (Standard T.81)
+#  TABELLE DI HUFFMAN
 # =====================================================================
 
 # --- LUMINANZA ---
 
-# DC Luminanza
+# DC
 STD_DC_LUMA_BITS = [0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
 STD_DC_LUMA_VALS = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B]
 
-# AC Luminanza
+# AC
 STD_AC_LUMA_BITS = [0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 125]
 STD_AC_LUMA_VALS = [
     0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 
@@ -76,11 +92,11 @@ STD_AC_LUMA_VALS = [
 
 # --- CROMINANZA ---
 
-# DC Crominanza
+# DC
 STD_DC_CHROMA_BITS = [0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
 STD_DC_CHROMA_VALS = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B]
 
-# AC Crominanza
+# AC
 STD_AC_CHROMA_BITS = [0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 119]
 STD_AC_CHROMA_VALS = [
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 

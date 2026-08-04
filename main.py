@@ -5,8 +5,8 @@ from preprocessing import run_pipeline
 from utils import modes
 
 
-def main(image_path, grayscale: bool = False, method: str = "huffman"):
-    print(f"-- Inizio Pipeline Arithmetic-JPEG --")
+def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> None:
+    print("-- Inizio pipeline Arithmetic-JPEG --")
     print(f"Tentativo di caricamento dell'immagine : {image_path}")
 
     if not os.path.exists(image_path):
@@ -22,9 +22,24 @@ def main(image_path, grayscale: bool = False, method: str = "huffman"):
     )
     print(f"Inizio elaborazione dell'immagine...\n")
 
-    run_pipeline(img, grayscale=grayscale, method=method)
+    compressed_stream, reconstructed_images = run_pipeline(
+        img, grayscale=grayscale, method=method
+    )
 
-    print(f"-- Fine Pipeline Arithmetic-JPEG --")
+    print("\nSalvataggio immagini ricostruite in corso...")
+
+    output_dir = os.path.join("images", "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    base_name = os.path.splitext(os.path.basename(args.image_path))[0]
+
+    for alg_name, final_img in reconstructed_images.items():
+        output_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.jpeg")
+
+        final_img.save(output_filename, format="JPEG", quality=100)
+        print(f"  [OK] Immagine ricostruita salvata in: {output_filename}")
+
+    print("\n-- Fine pipeline Arithmetic-JPEG --")
 
 
 if __name__ == "__main__":
