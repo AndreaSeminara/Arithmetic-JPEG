@@ -39,7 +39,7 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
         final_img.save(output_filename, format="JPEG", quality=100)
         print(f"  [OK] Immagine ricostruita salvata in: {output_filename}")
 
-    print("\n-- Fine pipeline Arithmetic-JPEG --")
+    print("\n-- Fine pipeline Arithmetic-JPEG --\n")
 
 
 if __name__ == "__main__":
