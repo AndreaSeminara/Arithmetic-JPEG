@@ -1,1 +1,1 @@
-from .huffman import HuffmanEncoder, HuffmanDecoder
+from .huffman import Huffman

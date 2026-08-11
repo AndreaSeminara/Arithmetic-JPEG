@@ -4,8 +4,6 @@ from utils.tables import (
     STD_DC_LUMA_VALS,
     STD_AC_LUMA_BITS,
     STD_AC_LUMA_VALS,
-)
-from utils.tables import (
     STD_DC_CHROMA_BITS,
     STD_DC_CHROMA_VALS,
     STD_AC_CHROMA_BITS,
@@ -36,7 +34,9 @@ def build_huffman_dict(bits: list[int], huffval: list[int]) -> dict[int, str]:
     return huff_dict
 
 
-class HuffmanEncoder(EntropyEncoder):
+class Huffman(EntropyEncoder, EntropyDecoder):
+    """Codifica e decodifica blocchi JPEG usando le tabelle Huffman condivise."""
+
     def __init__(self) -> None:
         """Inizializza le tabelle Huffman"""
         self.bit_string = ""
@@ -49,6 +49,19 @@ class HuffmanEncoder(EntropyEncoder):
         self.ac_chroma_table = build_huffman_dict(
             STD_AC_CHROMA_BITS, STD_AC_CHROMA_VALS
         )
+
+        self.dc_luma_decode_table = {
+            value: key for key, value in self.dc_luma_table.items()
+        }
+        self.ac_luma_decode_table = {
+            value: key for key, value in self.ac_luma_table.items()
+        }
+        self.dc_chroma_decode_table = {
+            value: key for key, value in self.dc_chroma_table.items()
+        }
+        self.ac_chroma_decode_table = {
+            value: key for key, value in self.ac_chroma_table.items()
+        }
 
     def encode(self, blocks: list[np.ndarray], is_luma: bool = True) -> bytes:
         """Codifica i blocchi con Huffman"""
@@ -92,8 +105,8 @@ class HuffmanEncoder(EntropyEncoder):
 
     def _get_category_and_bits(self, value: int) -> tuple[int, str]:
         """
-        Implementa le Tabelle dello standard T.81
-        Restituisce la Size, cioè quanti bit servono, e i bit del coefficiente
+        Implementa le Tabelle dello standard T.81.
+        Restituisce la Size (quanti bit servono) e i bit del coefficiente
         """
         if value == 0:
             return 0, ""
@@ -122,44 +135,6 @@ class HuffmanEncoder(EntropyEncoder):
 
         return bytes(byte_array)
 
-
-class HuffmanDecoder(EntropyDecoder):
-    def __init__(self) -> None:
-        """Inizializza le tabelle Huffman inverse"""
-        from utils.tables import (
-            STD_DC_LUMA_BITS,
-            STD_DC_LUMA_VALS,
-            STD_AC_LUMA_BITS,
-            STD_AC_LUMA_VALS,
-        )
-        from utils.tables import (
-            STD_DC_CHROMA_BITS,
-            STD_DC_CHROMA_VALS,
-            STD_AC_CHROMA_BITS,
-            STD_AC_CHROMA_VALS,
-        )
-
-        self.dc_luma_table = {
-            v: k
-            for k, v in build_huffman_dict(STD_DC_LUMA_BITS, STD_DC_LUMA_VALS).items()
-        }
-        self.ac_luma_table = {
-            v: k
-            for k, v in build_huffman_dict(STD_AC_LUMA_BITS, STD_AC_LUMA_VALS).items()
-        }
-        self.dc_chroma_table = {
-            v: k
-            for k, v in build_huffman_dict(
-                STD_DC_CHROMA_BITS, STD_DC_CHROMA_VALS
-            ).items()
-        }
-        self.ac_chroma_table = {
-            v: k
-            for k, v in build_huffman_dict(
-                STD_AC_CHROMA_BITS, STD_AC_CHROMA_VALS
-            ).items()
-        }
-
     def _decode_value(self, size: int, bits: str) -> int:
         """Restituisce il valore decodificato"""
         if size == 0:
@@ -176,8 +151,8 @@ class HuffmanDecoder(EntropyDecoder):
         bit_string = "".join(f"{byte:08b}" for byte in byte_stream)
         bit_idx = 0
 
-        dc_table = self.dc_luma_table if is_luma else self.dc_chroma_table
-        ac_table = self.ac_luma_table if is_luma else self.ac_chroma_table
+        dc_table = self.dc_luma_decode_table if is_luma else self.dc_chroma_decode_table
+        ac_table = self.ac_luma_decode_table if is_luma else self.ac_chroma_decode_table
 
         blocks = []
         prev_dc = 0
@@ -185,7 +160,6 @@ class HuffmanDecoder(EntropyDecoder):
         for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
-            # Lettura DC
             code = ""
             while True:
                 code += bit_string[bit_idx]
@@ -204,7 +178,6 @@ class HuffmanDecoder(EntropyDecoder):
             prev_dc += dc_diff
             block[0] = prev_dc
 
-            # Lettura AC
             ac_idx = 1
             while ac_idx < 64:
                 code = ""

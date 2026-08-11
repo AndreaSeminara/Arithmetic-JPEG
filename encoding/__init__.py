@@ -1,2 +1,1 @@
-from .encoder import encode_blocks
-from .decoder import decode_blocks
+from .compression import encode_blocks, decode_blocks

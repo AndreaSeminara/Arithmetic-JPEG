@@ -23,8 +23,7 @@ arithmetic_jpeg/
 │
 └── encoding/           # Codifiche
 │   ├── __init__.py
-│   ├── encoder.py      # Access Point per gestire quale algoritmo di codifica usare
-│   ├── decoder.py      # Access Point per gestire quale algoritmo di decodifca usare
+│   ├── compression.py      # Access Point per gestire quale algoritmo di codifica usare
 │   │
 │   └── coders/         # Algoritmi di Codifica
 │       ├── __init__.py
