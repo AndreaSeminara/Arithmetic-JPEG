@@ -3,7 +3,7 @@ from PIL import Image
 
 
 def rgb_to_ycbcr(img: Image.Image) -> Image.Image:
-    """Converte un'immagine RGB in YCbCr"""
+    # PIL usa la conversione BT.601 studio swing, che è quella prevista dallo standard JPEG
     if img.mode != "RGB":
         raise ValueError("L'immagine deve essere in formato RGB.")
 
@@ -11,7 +11,6 @@ def rgb_to_ycbcr(img: Image.Image) -> Image.Image:
 
 
 def ycbcr_to_rgb(y: np.ndarray, cb: np.ndarray, cr: np.ndarray) -> Image.Image:
-    """Unisce i tre canali e restituisce un'immagine RGB"""
     y_uint8 = np.clip(y, 0, 255).astype(np.uint8)
     cb_uint8 = np.clip(cb, 0, 255).astype(np.uint8)
     cr_uint8 = np.clip(cr, 0, 255).astype(np.uint8)
@@ -26,7 +25,6 @@ def ycbcr_to_rgb(y: np.ndarray, cb: np.ndarray, cr: np.ndarray) -> Image.Image:
 
 
 def extract_ycbcr_channels(img: Image.Image) -> dict[str, np.ndarray]:
-    """Estrae i canali Y, Cb e Cr"""
     if img is None:
         raise ValueError(
             "Immagine non valida. Assicurati di fornire un'immagine valida."
