@@ -21,8 +21,8 @@ from .base import EntropyEncoder, EntropyDecoder
 class ArithEncoderCore:
     def __init__(self):
         self.low = 0
-        self.high = 0xFFFFFFFF  # Il nostro "1.0" in virgola mobile
-        self.underflow = 0  # Contatore per quando l'intervallo si incastra a metà
+        self.high = 0xFFFFFFFF  # Rappresenta 1.0 in aritmetica intera a 32 bit
+        self.underflow = 0  # Contatore di underflow: bit in sospeso quando l'intervallo cade nella zona centrale
         self.bit_str = ""
 
     def update(self, bounds):
@@ -38,13 +38,13 @@ class ArithEncoderCore:
         self.high = self.low + high_off - 1
         self.low = self.low + low_off
 
-        # Dopo aver ristretto l'intervallo, controlliamo se serve "allargarlo"
+        # Dopo aver ristretto l'intervallo, si verifica se è necessario rinormalizzare
         self._renorm()
 
     def _renorm(self):
-        # Rinormalizzazione: se low e high finiscono nella stessa metà dell'intervallo globale,
-        # significa che il bit più significativo è ormai certo. Lo emettiamo e facciamo
-        # uno shift a sinistra (* 2) per recuperare precisione.
+        # Se low e high ricadono nella stessa metà dell'intervallo globale,
+        # il bit più significativo è ormai noto: viene emesso e l'intervallo
+        # viene raddoppiato (shift a sinistra) per guadagnare di nuovo precisione.
         HALF = 0x80000000
         QTR = 0x40000000
         while True:
@@ -59,32 +59,32 @@ class ArithEncoderCore:
                 self.low = ((self.low - HALF) * 2) & 0xFFFFFFFF
                 self.high = (((self.high - HALF) * 2) + 1) & 0xFFFFFFFF
             elif self.low >= QTR and self.high < (HALF + QTR):
-                # Rischio underflow: si stringono attorno al centro (0.5).
-                # Non so ancora il bit, ma me lo segno ed espando l'intervallo dal centro.
+                # Rischio underflow: l'intervallo cade nella zona centrale (0.5).
+                # Il bit non è ancora determinabile: si incrementa il contatore e si espande l'intervallo.
                 self.underflow += 1
                 self.low = ((self.low - QTR) * 2) & 0xFFFFFFFF
                 self.high = (((self.high - QTR) * 2) + 1) & 0xFFFFFFFF
             else:
-                # Intervallo ancora abbastanza largo, possiamo fermarci
+                # L'intervallo è ancora abbastanza largo: si esce dal ciclo.
                 break
 
     def _emit(self, bit):
-        # Scrive il bit confermato e ci appende l'opposto per
-        # tutti i bit di underflow che avevamo lasciato in sospeso
+        # Scrive il bit confermato e aggiunge il complemento per
+        # tutti i bit di underflow rimasti in sospeso
         self.bit_str += str(bit)
         self.bit_str += str(1 - bit) * self.underflow
         self.underflow = 0
 
     def finish(self):
-        # Chiusura della codifica: svuotiamo l'ultimo underflow
+        # Prima di chiudere, si forza l'emissione dell'ultimo bit di underflow.
         self.underflow += 1
         if self.low >= 0x40000000:
             self._emit(1)
         else:
             self._emit(0)
 
-        # Flush: aggiungiamo una sfilza di zeri per "saziare" il decoder.
-        # Evita che legga spazzatura o sfori nel canale successivo.
+        # Aggiunge 32 zeri finali così il decoder ha abbastanza bit da leggere
+        # senza andare oltre il segmento corrente.
         self.bit_str += "0" * 32
         return self.bit_str
 
@@ -97,7 +97,7 @@ class ArithDecoderCore:
         self.bit_str = bit_str
         self.idx = 0
 
-        # Riempiamo il buffer iniziale con i primi 32 bit del flusso
+        # Carica i primi 32 bit del flusso nel registro value per avviare la decodifica.
         for _ in range(32):
             self.value = (self.value * 2) + self._read_bit()
 
@@ -109,13 +109,13 @@ class ArithDecoderCore:
         return 0
 
     def get_offset(self):
-        # Capisce a che punto siamo nell'intervallo attuale per trovare il simbolo
+        # Restituisce l'offset del valore rispetto al limite inferiore e la larghezza dell'intervallo.
         rng = self.high - self.low + 1
         target = self.value - self.low
         return target, rng
 
     def update(self, bounds):
-        # Aggiorna i limiti esattamento come fa l'encoder
+        # Aggiorna i limiti esattamente come fa l'encoder
         low_c, high_c, tot_c = bounds
         rng = self.high - self.low + 1
 
@@ -213,7 +213,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
             for bit in dc_bits:
                 core.update((0, 1, 2) if bit == "0" else (1, 2, 2))
 
-            # I coefficienti AC usano il run-length encoding (quanti zeri di fila ci sono)
+            # I coefficienti AC usano il run-length encoding
             run = 0
             for ac_val in block[1:]:
                 ac_val = int(ac_val)
@@ -250,11 +250,11 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
             b_array.append(int(bit_str[i : i + 8], 2))
 
         data = bytes(b_array)
-        # Accoda i 4 byte per dire a priori quanto è lungo questo pezzo
+        # Aggiunge 4 byte di header con la lunghezza del dato, così il decoder può isolare il suo segmento
         return struct.pack(">I", len(data)) + data
 
     def _find_sym(self, target, rng, cdf):
-        # Cerca qual è il simbolo che cade esattamente nel target attuale
+        # Trova il simbolo il cui intervallo comprende la posizione target corrente
         for sym, (low_c, high_c, tot_c) in cdf.items():
             low_off = (rng * low_c) // tot_c
             high_off = (rng * high_c) // tot_c
@@ -263,7 +263,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
         return list(cdf.keys())[-1]
 
     def decode(self, byte_stream, num_blocks, is_luma=True):
-        # Spacchetta la lunghezza dai primi 4 byte e taglia il pezzo che gli serve
+        # Legge la lunghezza dai primi 4 byte e isola il segmento del canale corrente
         data_len = struct.unpack(">I", byte_stream[:4])[0]
         ch_bytes = byte_stream[4 : 4 + data_len]
 
@@ -307,7 +307,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
                 if ac_key == 0x00:
                     break  # Trovato EOB, il resto del blocco rimane a zero
                 elif ac_key == 0xF0:
-                    idx += 16  # Trovato ZRL, salto 16 posizioni
+                    idx += 16  # ZRL: si avanzano 16 posizioni
                 else:
                     run = ac_key >> 4
                     size = ac_key & 0x0F
@@ -375,7 +375,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         ac_freqs = {}
         prev_dc = 0
 
-        # PASSATA 1: Facciamo un giro a vuoto solo per contare chi compare più spesso
+        # PASSATA 1: Prima scansione per raccogliere le frequenze dei simboli
         for block in tqdm(blocks, desc=f"Scan Stat {ch_name}", leave=False):
             dc_val = int(block[0])
             diff = dc_val - prev_dc
@@ -403,7 +403,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         self.dc_cdf = self._build_cdf(dc_freqs)
         self.ac_cdf = self._build_cdf(ac_freqs)
 
-        # PASSATA 2: Ora che sappiamo le frequenze, comprimiamo per davvero
+        # PASSATA 2: Codifica effettiva con le probabilità calcolate dalla prima scansione
         core = ArithEncoderCore()
         prev_dc = 0
 
@@ -449,7 +449,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         data = bytes(b_array)
         payload = struct.pack(">I", len(data)) + data
 
-        # Restituiamo sia i bit puri che le tabelle per permettere al main di fare l'header
+        # Restituisce il payload compresso e le tabelle di frequenza necessarie per la decodifica
         return payload, {"dc": dc_freqs, "ac": ac_freqs}
 
     def _find_sym(self, target, rng, cdf):
@@ -467,7 +467,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         data_len = struct.unpack(">I", byte_stream[:4])[0]
         ch_bytes = byte_stream[4 : 4 + data_len]
 
-        # Invece di leggere tabelle fisse, ricarichiamo quelle passate dal file .myjpeg
+        # Le probabilità vengono ricostruite dalle frequenze salvate nel file .myjpeg
         self.dc_cdf = self._build_cdf(custom_tables["dc"])
         self.ac_cdf = self._build_cdf(custom_tables["ac"])
 

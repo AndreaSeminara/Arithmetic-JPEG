@@ -18,7 +18,7 @@ def build_huffman_dict(bits, huffval):
     # HUFFVAL: i simboli reali ordinati per probabilità
     if sum(bits) != len(huffval):
         raise ValueError(
-            "Tabelle sballate: il totale di BITS non corrisponde a HUFFVAL."
+            "Tabelle inconsistenti: il totale di BITS non corrisponde al numero di simboli in HUFFVAL."
         )
 
     huff_dict = {}
@@ -80,7 +80,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
                 if ac_val == 0:
                     run += 1
                     if run == 16:
-                        # ZRL: 16 zeri di fila, resettiamo il contatore
+                        # ZRL: 16 zeri consecutivi, il contatore viene azzerato
                         self.bit_str += ac_table[0xF0]
                         run = 0
                 else:
@@ -115,7 +115,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
         return size, bits
 
     def _pack_bytes(self):
-        # Trasforma il serpentone di "0" e "1" in byte reali.
+        # Converte la sequenza continua di bit ("0" e "1") in byte effettivi.
         # Nello standard JPEG, il padding finale si fa con "1" (bit a 1).
         rem = len(self.bit_str) % 8
         if rem != 0:
@@ -151,7 +151,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
             # --- Lettura DC ---
             code = ""
             while True:
-                # Leggiamo un bit alla volta finché non "matchiamo" un codice Huffman
+                # Leggiamo un bit alla volta finché non troviamo una corrispondenza nel dizionario Huffman
                 code += bit_str[idx]
                 idx += 1
                 if code in dc_table:

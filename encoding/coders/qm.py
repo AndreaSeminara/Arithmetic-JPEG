@@ -29,7 +29,7 @@ class QMCoderCore:
         # A è la larghezza dell'intervallo in fixed-point Q16: 0x10000 rappresenta 1.0
         self.A = 0x10000
         self.C = 0
-        # CT conta quanti bit possiamo ancora mettere in C prima di svuotare un byte.
+        # CT conta quanti bit possono ancora essere scritti in C prima di emettere un byte.
         # Vale 11 all'inizio e non 8 perché i primi 3 bit di C fungono da buffer di guardia (T.81 §D.1.5)
         self.CT = 11
         # B è il byte tenuto in sospeso finché non sappiamo se arriverà un carry
@@ -42,7 +42,7 @@ class QMCoderCore:
     def init_dec(self, stream: bytes):
         self._in = stream
         self._in_idx = 0
-        # Carichiamo subito i primi byte nel registro C così il decoder è pronto a girare.
+        # I primi byte vengono caricati nel registro C per inizializzare il decoder.
         # La procedura è speculare all'init dell'encoder (T.81 §D.3.1)
         self.B = self._next_byte()
         self.C = (self.B << 16)
@@ -59,8 +59,8 @@ class QMCoderCore:
         return 0
 
     def encode_bin(self, cx: int, decision: int):
-        # MPS = Most Probable Symbol (il bit che ci aspettiamo di più),
-        # LPS = il meno probabile. Lo stato cx descrive la probabilità corrente
+        # MPS = Most Probable Symbol (il simbolo con probabilità maggiore),
+        # LPS = il simbolo meno probabile. Lo stato cx descrive la probabilità corrente
         # e si aggiorna automaticamente dopo ogni simbolo (T.81 tab. D.3).
         state = self.st[cx]
         Qe, NMPS, NLPS, SWITCH = self._ST_TABLE[state]
@@ -137,7 +137,7 @@ class QMCoderCore:
         self.C = (self.C << self.CT) & 0xFFFFFFFF
         
         # Svuotiamo i byte rimasti nel registro C con due BYTEOUT,
-        # più una terza chiamata per dare al decoder abbastanza bit da consumare senza sforare.
+        # più una terza chiamata per garantire al decoder abbastanza bit da leggere senza eccedere il segmento.
         self._byte_out()
         self._byte_out()
         self._byte_out()
@@ -269,7 +269,7 @@ class Binarizer:
         S0 = self._dc_context(self.prev_dc_diff)
         self.prev_dc_diff = diff
         
-        # se la differenza è zero lo diciamo subito e usciamo
+        # se la differenza è zero, si codifica con il simbolo 0 e si ritorna
         if diff == 0:
             core.encode_bin(ctx_base + S0, 0)
             return
@@ -284,7 +284,7 @@ class Binarizer:
         # Sz è la magnitudine scalata di -1 per la codifica unary che segue
         Sz = abs(diff) - 1
 
-        # dice "quanto è grande" il valore (categoria di magnitudine)
+        # seleziona il contesto di magnitudine in base al segno della differenza
         S = (S0 + 3) if diff < 0 else (S0 + 2)
         if Sz < 1:
             core.encode_bin(ctx_base + S, 0)
@@ -471,7 +471,7 @@ class QMCoder(EntropyEncoder, EntropyDecoder):
                 binarizer.binarize_ac(core, last_nonzero + 1, True)
                 
         stream = core.flush()
-        # Mettiamo davanti la lunghezza del payload così il decoder sa esattamente quanti byte leggere
+        # Prepende 4 byte di lunghezza al payload così il decoder sa quanti byte leggere
         return struct.pack(">I", len(stream)) + stream
 
     def decode(self, stream: bytes, num_blocks: int, is_luma: bool = True) -> Tuple[List[np.ndarray], int]:

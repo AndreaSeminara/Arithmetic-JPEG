@@ -51,11 +51,11 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
         algo_flag = ALGORITHMS_FLAGS.get(alg_name)
         if algo_flag is None:
             print(
-                f"  [WARN] Algoritmo sconosciuto '{alg_name}', salto salvataggio .myjpeg"
+                f"  [WARN] Algoritmo sconosciuto '{alg_name}', salvataggio .myjpeg ignorato"
             )
             continue
 
-        # 2. Invece di `custom_tables = None`, estraiamo le tabelle reali
+        # Estraiamo le tabelle di frequenza reali per l'aritmetica statica
         tables_for_save = None
         if algo_flag == 2:  # Arithmetic Static
             tables_for_save = (
@@ -71,7 +71,7 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
                 height=altezza,
                 algo_flag=algo_flag,
                 bitstream=stream,
-                custom_tables=tables_for_save,  # 3. Passiamo le tabelle vere!
+                custom_tables=tables_for_save,
             )
 
             loaded_w, loaded_h, loaded_flag, loaded_tables, loaded_stream = (

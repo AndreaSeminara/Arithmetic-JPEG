@@ -19,7 +19,7 @@ def dct(block: np.ndarray) -> np.ndarray:
     if block.shape != (8, 8):
         raise ValueError("Il blocco deve essere di dimensione 8x8.")
 
-    # I pixel stanno in [0, 255]: li centrare attorno allo zero migliora la DCT
+    # I pixel assumono valori in [0, 255]: centrarli attorno allo zero migliora la DCT
     # e riduce l'ampiezza del coefficiente DC, che altrimenti dominerebbe tutto.
     block = block.astype(np.float32) - 128.0
 
@@ -30,6 +30,6 @@ def inv_dct(block: np.ndarray) -> np.ndarray:
     if block.shape != (8, 8):
         raise ValueError("Il blocco deve essere di dimensione 8x8.")
 
-    # C^T @ block @ C inverte esattamente la trasformata,
-    # poi rimettiamo il bias di 128 che avevamo tolto in fase di codifica.
+    # C^T @ block @ C inverte esattamente la trasformata;
+    # si ripristina il bias di 128 rimosso in fase di codifica.
     return np.dot(np.dot(DCT_MTX.T, block), DCT_MTX) + 128.0
