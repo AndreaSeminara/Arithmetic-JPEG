@@ -1,8 +1,16 @@
 import argparse
 import os
 from PIL import Image
+from encoding import load_custom_jpeg, save_custom_jpeg
 from preprocessing import run_pipeline
 from utils import modes
+
+ALGORITHMS_FLAGS = {
+    "huffman": 0,
+    "arithmetic_tables": 1,
+    "arithmetic_static": 2,
+    "qm": 3,
+}
 
 
 def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> None:
@@ -22,21 +30,88 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
     )
     print(f"Inizio elaborazione dell'immagine...\n")
 
-    compressed_stream, reconstructed_images = run_pipeline(
+    compressed_stream, reconstructed_images, custom_tables = run_pipeline(
         img, grayscale=grayscale, method=method
     )
 
-    print("\nSalvataggio immagini ricostruite in corso...")
+    print("\nSalvataggio immagini ricostruite e bitstream in corso...")
 
     output_dir = os.path.join("images", "output")
     os.makedirs(output_dir, exist_ok=True)
 
-    base_name = os.path.splitext(os.path.basename(args.image_path))[0]
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+
+    streams = (
+        compressed_stream
+        if isinstance(compressed_stream, dict)
+        else {method: compressed_stream}
+    )
+
+    for alg_name, stream in streams.items():
+        algo_flag = ALGORITHMS_FLAGS.get(alg_name)
+        if algo_flag is None:
+            print(
+                f"  [WARN] Algoritmo sconosciuto '{alg_name}', salto salvataggio .myjpeg"
+            )
+            continue
+
+        # 2. Invece di `custom_tables = None`, estraiamo le tabelle reali
+        tables_for_save = None
+        if algo_flag == 2:  # Arithmetic Static
+            tables_for_save = (
+                custom_tables.get(alg_name) if method == "all" else custom_tables
+            )
+
+        container_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.myjpeg")
+
+        try:
+            save_custom_jpeg(
+                filepath=container_filename,
+                width=larghezza,
+                height=altezza,
+                algo_flag=algo_flag,
+                bitstream=stream,
+                custom_tables=tables_for_save,  # 3. Passiamo le tabelle vere!
+            )
+
+            loaded_w, loaded_h, loaded_flag, loaded_tables, loaded_stream = (
+                load_custom_jpeg(container_filename)
+            )
+
+            if algo_flag == 2:
+                if (
+                    loaded_w != larghezza
+                    or loaded_h != altezza
+                    or loaded_flag != algo_flag
+                    or loaded_tables is None
+                ):
+                    print(
+                        f"  [WARN] Verifica del contenitore statico fallita per: {container_filename}"
+                    )
+                else:
+                    print(
+                        f"  [OK] Bitstream salvato in container: {container_filename}"
+                    )
+            elif (
+                loaded_w != larghezza
+                or loaded_h != altezza
+                or loaded_flag != algo_flag
+                or loaded_stream != stream
+            ):
+                print(
+                    f"  [WARN] Verifica round-trip non perfetta per: {container_filename}"
+                )
+            else:
+                print(f"  [OK] Bitstream salvato in container: {container_filename}")
+        except Exception as exc:
+            print(
+                f"  [ERRORE] Salvataggio container fallito ({container_filename}): {exc}"
+            )
 
     for alg_name, final_img in reconstructed_images.items():
-        output_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.jpeg")
+        output_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.png")
 
-        final_img.save(output_filename, format="JPEG", quality=100)
+        final_img.save(output_filename, format="PNG")
         print(f"  [OK] Immagine ricostruita salvata in: {output_filename}")
 
     print("\n-- Fine pipeline Arithmetic-JPEG --\n")
@@ -59,7 +134,7 @@ if __name__ == "__main__":
         "--method",
         type=str,
         default="0",
-        choices=["0", "1", "2", "3"],
+        choices=["0", "1", "2", "3", "4"],
         help="Algoritmo di codifica entropica da utilizzare",
     )
     args = parser.parse_args()

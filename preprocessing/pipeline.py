@@ -27,49 +27,32 @@ def run_pipeline(
         print("Errore: Immagine non valida. Assicurati di fornire un'immagine valida.")
         return None
 
-    # ==================================================
-    #               Fase di Codifica
-    # ==================================================
+    # --- Preprocessing ---
 
-    # STEP 1
-    # Se l'immagine è in scala di grigi o se l'opzione grayscale è attiva, convertila in scala di grigi
     if grayscale or img.mode == "L":
         print("Immagine in scala di grigi...")
-
         img_gray = img.convert("L")
         channels = {"Y": np.array(img_gray, dtype=np.float32)}
     else:
-        # Se l'immagine è a colori, converti in YCbCr e estrai i canali
         print("Immagine a colori...")
         if img.mode != "RGB":
             img = img.convert("RGB")
-
         channels = extract_ycbcr_channels(img)
 
     processed_blocks_by_channel = {}
 
     for channel_name, channel_data in channels.items():
         channel_blocks = []
-        # STEP 2
-        # Dividi ogni canale in blocchi 8x8
         blocks, pad_h, pad_w = get_nxn_blocks(channel_data)
 
         for block in blocks:
-            # STEP 3
-            # Trasformata Discreta del Coseno (DCT) su ogni blocco
             dct_block = dct(block)
 
-            # STEP 4
-            # Quantizzazione su ogni blocco DCT
-            # Distinguo tra canale Y (luminanza) e canali Cb/Cr (crominanza) per usare la matrice di quantizzazione corretta
+            # Y usa la matrice di quantizzazione della luminanza, Cb/Cr quella della crominanza
             is_luma = channel_name == "Y"
             q_block = quantize_block(dct_block, is_luma=is_luma)
 
-            # STEP 5
-            # Zig-Zag scan su ogni blocco quantizzato
             zz_array = zigzag_scan(q_block)
-
-            # Aggiungi il blocco alla lista del canale
             channel_blocks.append(zz_array)
 
         processed_blocks_by_channel[channel_name] = channel_blocks
@@ -82,8 +65,9 @@ def run_pipeline(
         else f"\nAvvio della fase di codifica con il metodo: {method}\n"
     )
 
-    compressed_stream = encode_blocks(processed_blocks_by_channel, method=method)
-
+    compressed_stream, custom_tables = encode_blocks(
+        processed_blocks_by_channel, method=method
+    )
     preview = (
         compressed_stream[:20]
         if not isinstance(compressed_stream, dict)
@@ -91,9 +75,7 @@ def run_pipeline(
     )
     print(f"\nCodifica completata con successo: {preview}")
 
-    # ==================================================
-    #       Fase di Decodifica e Ricostruzione
-    # ==================================================
+    # --- Decodifica e ricostruzione ---
     reconstructed_images = {}
     streams = (
         compressed_stream
@@ -101,7 +83,6 @@ def run_pipeline(
         else {method: compressed_stream}
     )
 
-    # Calcoliamo quanti blocchi ci sono per ogni canale
     blocks_layout = {
         ch: len(blocks) for ch, blocks in processed_blocks_by_channel.items()
     }
@@ -109,10 +90,14 @@ def run_pipeline(
     for encoding_name, stream in streams.items():
         print(f"\nAvvio decodifica per il metodo: {encoding_name.upper()}")
 
-        # STEP 1
-        # Decodifica dei blocchi
+        # Per l'aritmetica statica servono le tabelle di frequenza costruite durante la codifica
+        tables_for_decode = None
+        if encoding_name == "arithmetic_static":
+            tables_for_decode = (
+                custom_tables.get(encoding_name) if method == "all" else custom_tables
+            )
         decoded_blocks_by_channel = decode_blocks(
-            stream, blocks_layout, method=encoding_name
+            stream, blocks_layout, method=encoding_name, custom_tables=tables_for_decode
         )
 
         reconstructed_channels = {}
@@ -123,34 +108,22 @@ def run_pipeline(
             spatial_blocks = []
 
             for block_1d in blocks:
-                # Step 2
-                # Inverse Zig-Zag
                 block_2d_q = inverse_zigzag_scan(block_1d)
-
-                # Step 3
-                # Dequantizzazione
                 block_2d_dct = dequantize_block(block_2d_q, is_luma=is_luma)
-
-                # Step 4
-                # Inverse DCT
                 spatial_block = inv_dct(block_2d_dct)
-
                 spatial_blocks.append(spatial_block)
 
-            # Step 5
-            # Unione dei blocchi 8x8
             channel_matrix = reassemble_blocks(
                 spatial_blocks,
                 image_shape=(img.height, img.width),
                 pad_h=pad_h,
                 pad_w=pad_w,
             )
+            channel_matrix = channel_matrix[: img.height, : img.width]
             reconstructed_channels[channel_name] = channel_matrix
 
         print(f"  Conversione colore e creazione oggetto immagine...")
 
-        # STEP 6
-        # Conversione da YCbCr a RGB (o scala di grigi)
         if grayscale or img.mode == "L":
             final_array = np.clip(reconstructed_channels["Y"], 0, 255).astype(np.uint8)
             final_img = Image.fromarray(final_array, mode="L")
@@ -163,4 +136,4 @@ def run_pipeline(
 
         reconstructed_images[encoding_name] = final_img
 
-    return compressed_stream, reconstructed_images
+    return compressed_stream, reconstructed_images, custom_tables

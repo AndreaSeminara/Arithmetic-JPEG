@@ -28,9 +28,14 @@ arithmetic_jpeg/
 │   └── coders/         # Algoritmi di Codifica
 │       ├── __init__.py
 │       ├── base.py         # Classe astratta per i codificatori
-│       └── huffman.py      # Huffman
+│       ├── huffman.py      # Huffman
+│       ├── arithmetic.py   # Aritmetica - Statica e con Tabelle
+│       └── qm.py           # QM-Coder
+|
 └── utils/              # Utility Generale
 │   ├── __init__.py
 │   ├── modes.py            # Variabile Globale per Modalità d'Uso del Comando
 │   ├── tables.py           # Tabelle dello Standard T.81 per Huffman e Quantizzazione
+|
+└── images/             # Immagine di Input e Risultati in Output
 ```
