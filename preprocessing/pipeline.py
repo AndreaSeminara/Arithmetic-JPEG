@@ -60,50 +60,48 @@ def run_pipeline(
     print("Pipeline di preprocessing completata con successo.\n")
 
     print(
-        f"\nAvvio della fase di codifica"
+        f"\nAvvio della fase di codifica e decodifica"
         if method != "all"
-        else f"\nAvvio della fase di codifica con il metodo: {method}\n"
+        else f"\nAvvio della fase di codifica e decodifica (Tutti i metodi)\n"
     )
 
-    compressed_stream, custom_tables = encode_blocks(
-        processed_blocks_by_channel, method=method
-    )
-    preview = (
-        compressed_stream[:20]
-        if not isinstance(compressed_stream, dict)
-        else "Dizionario di flussi"
-    )
-    print(f"\nCodifica completata con successo: {preview}")
+    from tqdm import tqdm
 
-    # --- Decodifica e ricostruzione ---
+    methods_to_run = ["huffman", "arithmetic_tables", "arithmetic_static", "qm"] if method == "all" else [method]
+
+    compressed_streams = {}
+    custom_tables_dict = {}
     reconstructed_images = {}
-    streams = (
-        compressed_stream
-        if isinstance(compressed_stream, dict)
-        else {method: compressed_stream}
-    )
 
     blocks_layout = {
         ch: len(blocks) for ch, blocks in processed_blocks_by_channel.items()
     }
 
-    for encoding_name, stream in streams.items():
-        print(f"\nAvvio decodifica per il metodo: {encoding_name.upper()}")
+    for m in methods_to_run:
+        if m == "huffman": algo_name = "Huffman"
+        elif m == "arithmetic_tables": algo_name = "Aritmetica Standard"
+        elif m == "arithmetic_static": algo_name = "Aritmetica Statica"
+        elif m == "qm": algo_name = "QM"
+        else: algo_name = m.upper()
 
-        # Per l'aritmetica statica servono le tabelle di frequenza costruite durante la codifica
-        tables_for_decode = None
-        if encoding_name == "arithmetic_static":
-            tables_for_decode = (
-                custom_tables.get(encoding_name) if method == "all" else custom_tables
-            )
+        pbar = tqdm(total=100, desc=f"Codifica {algo_name}", leave=True, bar_format="{l_bar}{bar}| {n_fmt}%")
+
+        # --- Codifica ---
+        stream, tables = encode_blocks(processed_blocks_by_channel, method=m)
+        compressed_streams[m] = stream
+        if tables is not None:
+            custom_tables_dict[m] = tables
+
+        pbar.update(50)
+
+        # --- Decodifica ---
+        tables_for_decode = tables if m == "arithmetic_static" else None
         decoded_blocks_by_channel = decode_blocks(
-            stream, blocks_layout, method=encoding_name, custom_tables=tables_for_decode
+            stream, blocks_layout, method=m, custom_tables=tables_for_decode
         )
 
         reconstructed_channels = {}
-
         for channel_name, blocks in decoded_blocks_by_channel.items():
-            print(f"  Ricostruzione geometrica canale {channel_name}...")
             is_luma = channel_name == "Y"
             spatial_blocks = []
 
@@ -122,8 +120,6 @@ def run_pipeline(
             channel_matrix = channel_matrix[: img.height, : img.width]
             reconstructed_channels[channel_name] = channel_matrix
 
-        print(f"  Conversione colore e creazione oggetto immagine...")
-
         if grayscale or img.mode == "L":
             final_array = np.clip(reconstructed_channels["Y"], 0, 255).astype(np.uint8)
             final_img = Image.fromarray(final_array, mode="L")
@@ -134,6 +130,16 @@ def run_pipeline(
                 reconstructed_channels["Cr"],
             )
 
-        reconstructed_images[encoding_name] = final_img
+        reconstructed_images[m] = final_img
 
-    return compressed_stream, reconstructed_images, custom_tables
+        pbar.update(50)
+        pbar.close()
+
+    if method == "all":
+        final_stream = compressed_streams
+        final_tables = custom_tables_dict
+    else:
+        final_stream = compressed_streams[method]
+        final_tables = custom_tables_dict.get(method, None)
+
+    return final_stream, reconstructed_images, final_tables

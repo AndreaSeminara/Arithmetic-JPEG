@@ -1,6 +1,6 @@
 import numpy as np
 import struct
-from tqdm import tqdm
+
 from utils.tables import (
     STD_DC_LUMA_BITS,
     STD_DC_LUMA_VALS,
@@ -200,7 +200,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
         dc_cdf = self.dc_luma if is_luma else self.dc_chroma
         ac_cdf = self.ac_luma if is_luma else self.ac_chroma
 
-        for block in tqdm(blocks, desc="Encode Aritmetico", leave=False):
+        for block in blocks:
             # Il DC si codifica come differenza col blocco precedente (DPCM)
             dc_val = int(block[0])
             diff = dc_val - prev_dc
@@ -276,7 +276,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
         blocks = []
         prev_dc = 0
 
-        for _ in tqdm(range(num_blocks), desc="Decode Aritmetico", leave=False):
+        for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
             # --- Lettura del DC ---
@@ -376,7 +376,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         prev_dc = 0
 
         # PASSATA 1: Prima scansione per raccogliere le frequenze dei simboli
-        for block in tqdm(blocks, desc=f"Scan Stat {ch_name}", leave=False):
+        for block in blocks:
             dc_val = int(block[0])
             diff = dc_val - prev_dc
             prev_dc = dc_val
@@ -407,7 +407,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         core = ArithEncoderCore()
         prev_dc = 0
 
-        for block in tqdm(blocks, desc=f"Codifica {ch_name}", leave=False):
+        for block in blocks:
             dc_val = int(block[0])
             diff = dc_val - prev_dc
             prev_dc = dc_val
@@ -478,7 +478,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         prev_dc = 0
         ch_name = "Y" if is_luma else "CbCr"
 
-        for _ in tqdm(range(num_blocks), desc=f"Decode {ch_name}", leave=False):
+        for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
             # --- Lettura DC ---
