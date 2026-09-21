@@ -4,20 +4,19 @@ from typing import List, Tuple
 from .base import EntropyEncoder, EntropyDecoder
 from utils.tables import QM_ST_TABLE
 
-
-#  QM-CODER 
+#  QM-CODER
 #
-#  Il QM-Coder è il codificatore aritmetico binario specificato dallo
-#  standard JPEG. Lavora su decisioni binarie (0/1) e stima le probabilità
-#  tramite una macchina a stati finiti che si adatta automaticamente alla statistica del segnale.
+#  Il QM-Coder è un codificatore aritmetico binario adattivo usato in JPEG.
+#  Ogni decisione binaria (0 o 1) viene codificata sfruttando una stima
+#  della probabilità che si aggiorna automaticamente blocco dopo blocco.
 #
-#  Registri:
-#   - A  : ampiezza dell'intervallo di codifica (Q16, 0x10000 = 1.0)
-#   - C  : registro di codifica, accumula i bit prima dell'emissione
-#   - CT : contatore dei bit liberi in C prima del prossimo BYTEOUT
-#   - B  : ultimo byte emesso, tenuto in sospeso per gestire il carry
-#   - SC : numero di byte 0xFF accumulati in attesa di carry resolution
-#   - ZC : numero di byte 0x00 consecutivi rimandati (ottimizzazione)
+#  I registri principali sono:
+#   - A  : ampiezza dell'intervallo di codifica. 0x10000 rappresenta l'intervallo pieno (= 1.0 scalato a intero)
+#   - C  : registro di codifica che accumula i bit man mano che li produciamo
+#   - CT : quanti bit possiamo ancora inserire in C prima di dover emettere un byte
+#   - B  : l'ultimo byte "in sospeso", tenuto da parte per gestire eventuali carry
+#   - SC : quanti byte 0xFF consecutivi stiamo aspettando di confermare
+#   - ZC : quanti byte 0x00 consecutivi sono stati rimandati (evitiamo di scriverli subito)
 
 
 class QMCoderCore:
@@ -34,8 +33,7 @@ class QMCoderCore:
         self.A = 0
         self.C = 0
         self.CT = 0
-        # B = -1 è la sentinella "nessun byte in sospeso":
-        # evita il flag _first_byte usato in implementazioni più semplici.
+        # B = -1 indica "nessun byte in sospeso"
         self.B = -1
         self.ZC = 0
         self.SC = 0
@@ -45,23 +43,21 @@ class QMCoderCore:
         self._in = b""
         self._in_idx = 0
 
-    #  Inizializzazione (T.81 §D.1.7 / §D.2.7)
+    #  Inizializzazione
 
     def init_enc(self):
-        self.A = 0x10000  # Intervallo pieno = 1.0 in fixed-point Q16
+        self.A = 0x10000  # Intervallo pieno
         self.C = 0
-        # CT = 11 anziché 12: i primi 3 bit di C sono spacer di guardia
-        # che impediscono al carry di propagarsi oltre il registro (T.81 §D.1.5).
-        # Con B = -1 il primo BYTEOUT non emette nulla, equivale all'approccio
-        # standard con BP = BPST - 1.
+        # CT parte da 11, i 3 bit più alti di C fungono da buffer di guardia per evitare carry
         self.CT = 11
+        # B = -1 indica che non ci sono byte in sospeso
         self.B = -1
         self.ZC = 0
         self.SC = 0
         self._out = []
 
     def init_dec(self, stream: bytes):
-        """Carica i primi byte nel registro C per avviare la decodifica (T.81 §D.2.7)."""
+        """Carica i primi byte nel registro C per avviare la decodifica"""
         self._in = stream
         self._in_idx = 0
         self.B = self._next_byte()
@@ -72,63 +68,63 @@ class QMCoderCore:
         self.A = 0x10000
 
     def _next_byte(self) -> int:
-        """Legge il prossimo byte dallo stream; restituisce 0 se esaurito."""
+        """Legge il prossimo byte dallo stream. Restituisce 0 se esaurito"""
         if self._in_idx < len(self._in):
             b = self._in[self._in_idx]
             self._in_idx += 1
             return b
         return 0
 
-    #  Codifica binaria adattiva (T.81 Fig. D.7)
+    #  Codifica binaria adattiva
 
     def encode_bin(self, cx: int, decision: int):
         """Codifica una decisione binaria nel contesto cx.
 
-        L'intervallo [0, A) viene suddiviso in due sotto-intervalli:
-          - MPS (Most Probable Symbol): ampiezza A - Qe
-          - LPS (Least Probable Symbol): ampiezza Qe
+        L'idea di base è semplice: l'intervallo corrente [0, A) viene diviso
+        in due parti in base alla probabilità stimata:
+          - MPS (Most Probable Symbol): occupa A - Qe
+          - LPS (Least Probable Symbol): occupa Qe
 
-        Quando A - Qe < Qe si verifica il "conditional exchange":
-        i sotto-intervalli vengono scambiati per mantenere la coerenza
-        tra la codifica e la stima di probabilità (T.81 §D.1.3).
+        Quando A - Qe scende sotto Qe avviene il "conditional exchange":
+        i due sotto-intervalli vengono scambiati, in modo che l'MPS occupi
+        sempre la fetta più grande.
         """
         state = self.st[cx]
         Qe, NMPS, NLPS, SWITCH = self._ST_TABLE[state]
 
         self.A -= Qe
         if decision == self.mps[cx]:
-            # --- Ramo MPS ---
+            # Ramo MPS
             if self.A < 0x8000:
-                # Conditional exchange: se l'intervallo MPS (A) è diventato
-                # più piccolo di quello LPS (Qe), li scambiamo.
+                # L'intervallo è diventato troppo piccolo e va rinormalizzato.
+                # Prima però controlliamo se serve il conditional exchange:
+                # se A < Qe l'MPS è più stretto dell'LPS, quindi li scambiamo.
                 if self.A < Qe:
                     self.C = (self.C + self.A) & 0xFFFFFFFF
                     self.A = Qe
                 self.st[cx] = NMPS
                 self._renorm_e()
-            # Se A >= 0x8000 l'intervallo è ancora nel range valido:
-            # non serve né aggiornare lo stato né rinormalizzare.
+            # Se A è ancora >= 0x8000 siamo a posto, nessuna azione necessaria
         else:
-            # --- Ramo LPS ---
-            # Conditional exchange: se A >= Qe il sotto-intervallo LPS
-            # è nella parte bassa, altrimenti è già nella parte alta.
+            # Ramo LPS: spostiamo C verso la parte alta dell'intervallo
+            # in modo da selezionare la sotto-regione LPS.
             if self.A >= Qe:
                 self.C = (self.C + self.A) & 0xFFFFFFFF
                 self.A = Qe
-            # SWITCH: quando Qe è molto alto, il senso di MPS/LPS
-            # si inverte perché il simbolo "raro" è diventato il più frequente.
+            # SWITCH: se Qe è molto alto, il simbolo "raro" sta diventando
+            # il più comune, quindi invertiamo la polarità MPS/LPS.
             if SWITCH:
                 self.mps[cx] ^= 1
             self.st[cx] = NLPS
-            self._renorm_e()  # Dopo un LPS la rinormalizzazione è sempre necessaria
+            self._renorm_e()  # dopo un LPS la rinormalizzazione è sempre necessaria
 
-    #  Rinormalizzazione Encoder (T.81 §D.1.5 — RENORME)
+    #  Rinormalizzazione Encoder
 
     def _renorm_e(self):
-        """Raddoppia l'intervallo A finché non torna nel range [0x8000, 0x10000).
+        """Raddoppia l'intervallo A finché non rientra nel range [0x8000, 0x10000).
 
-        Ad ogni shift a sinistra di C un bit viene "consumato" da CT.
-        Quando CT arriva a 0 il byte accumulato in C viene emesso con BYTEOUT.
+        Ad ogni shift a sinistra di C, CT si decrementa di 1.
+        Quando CT raggiunge 0, il byte accumulato viene emesso tramite BYTEOUT.
         """
         while self.A < 0x8000:
             self.A = (self.A << 1) & 0xFFFF
@@ -137,7 +133,7 @@ class QMCoderCore:
             if self.CT == 0:
                 self._byte_out()
 
-    #  Emissione byte con gestione carry (T.81 §D.1.6 — BYTEOUT)
+    #  Emissione byte con gestione carry
 
     def _byte_out(self):
         """Emette un byte dal registro C gestendo carry e byte stuffing.
@@ -147,16 +143,16 @@ class QMCoderCore:
 
         Tre casi possibili:
           1. Carry (t > 0xFF): il carry si propaga nel byte B pendente.
-             Tutti gli 0xFF accumulati nello stack (SC) diventano 0x00
+             Tutti gli 0xFF in SC diventano 0x00
              perché 0xFF + carry = 0x100 → byte = 0x00 con carry propagato.
-          2. Byte 0xFF (temp == 0xFF): non possiamo ancora emetterlo perché
-             un carry futuro potrebbe modificarlo. Lo accumuliamo in SC.
-          3. Byte normale: possiamo emettere B e svuotare lo stack.
-             Ogni 0xFF nello stack viene emesso con byte stuffing (0xFF 0x00)
+          2. Byte 0xFF (temp == 0xFF): non viene emesso subito perché
+             un carry futuro potrebbe modificarlo. Viene accumulato in SC.
+          3. Byte normale: B viene emesso e lo stack SC viene svuotato.
+             Ogni 0xFF in SC è seguito da 0x00 (byte stuffing)
              per evitare che il decoder lo scambi per un marker JPEG.
 
         ZC ottimizza l'output: i byte 0x00 consecutivi vengono contati
-        e scritti solo quando necessario, evitando leading zeros inutili.
+        e scritti solo quando necessario, evitando zeri iniziali non significativi.
         """
         t = self.C >> 19
         temp = t & 0xFF
@@ -164,7 +160,7 @@ class QMCoderCore:
         if t > 0xFF:
             # ---- Carry rilevato ----
             if self.B >= 0:
-                # Svuota eventuali 0x00 accumulati prima del byte pendente
+                # Emette gli eventuali 0x00 accumulati prima del byte pendente
                 if self.ZC:
                     for _ in range(self.ZC):
                         self._out.append(0x00)
@@ -185,7 +181,7 @@ class QMCoderCore:
         elif temp == 0xFF:
             # ---- Byte 0xFF: accumulalo nello stack ----
             # Non possiamo emetterlo ora perché un carry futuro
-            # potrebbe propagarsi attraverso di esso.
+            # potrebbe propagarsi attraverso di esso
             self.SC += 1
 
         else:
@@ -203,7 +199,7 @@ class QMCoderCore:
                 self._out.append(self.B)
 
             # Lo stack di 0xFF può ora essere emesso definitivamente
-            # con byte stuffing: ogni 0xFF è seguito da 0x00 (T.81 §D.1.4)
+            # con byte stuffing: ogni 0xFF è seguito da 0x00
             if self.SC:
                 if self.ZC:
                     for _ in range(self.ZC):
@@ -222,14 +218,13 @@ class QMCoderCore:
         self.C &= 0x7FFFF
         self.CT = 8
 
-
-    #  Finalizzazione (T.81 §D.1.8 — FLUSH)
+    #  Finalizzazione
 
     def flush(self) -> bytes:
         """Chiude il flusso di codifica emettendo gli ultimi byte.
 
         Sceglie un valore finale di C all'interno dell'intervallo [C, C+A)
-        che massimizzi i trailing zero, così da minimizzare i byte di output.
+        con il maggior numero possibile di zeri finali, minimizzando i byte di output.
         Poi gestisce l'eventuale carry finale e scrive solo i byte significativi.
         """
         # Arrotonda C al limite superiore dell'intervallo, azzerando i bit bassi
@@ -287,8 +282,8 @@ class QMCoderCore:
                     self._out.append(0x00)
 
         # --- Emissione degli ultimi byte significativi ---
-        # Emettiamo solo i byte che contengono informazione utile,
-        # evitando trailing 0x00 che il decoder non ha bisogno di leggere.
+        # Vengono scritti solo i byte con informazione utile,
+        # omettendo gli 0x00 finali che il decoder non deve leggere.
         if self.C & 0x7FFF800:
             if self.ZC:
                 for _ in range(self.ZC):
@@ -311,7 +306,7 @@ class QMCoderCore:
 
         return bytes(self._out)
 
-    #  Decodifica binaria adattiva (T.81 Fig. D.14)
+    #  Decodifica binaria adattiva
 
     def decode_bin(self, cx: int) -> int:
         """Decodifica una decisione binaria dal contesto cx.
@@ -358,13 +353,13 @@ class QMCoderCore:
             self._renorm_d()
         return decision
 
-    #  Codifica/Decodifica a probabilità fissa (T.81 §F.1.4.4.1)
+    #  Codifica/Decodifica a probabilità fissa
     #  Usata per il segno dei coefficienti AC: la distribuzione dei segni
     #  è approssimativamente uniforme (p ≈ 0.5), quindi non serve adattarla.
     #  Si usa Qe = 0x5A1D (stato 0) senza aggiornamento di stato.
 
     def encode_bin_fixed(self, decision: int):
-        """Codifica un bit con probabilità fissa 0.5 (senza adattamento)."""
+        """Codifica un bit con probabilità fissa 0.5 (senza adattamento)"""
         Qe = 0x5A1D
         self.A -= Qe
         if decision == 0:
@@ -380,7 +375,7 @@ class QMCoderCore:
             self._renorm_e()
 
     def decode_bin_fixed(self) -> int:
-        """Decodifica un bit con probabilità fissa 0.5 (senza adattamento)."""
+        """Decodifica un bit con probabilità fissa 0.5 (senza adattamento)"""
         Qe = 0x5A1D
         self.A -= Qe
         C_high = self.C >> 16
@@ -405,7 +400,7 @@ class QMCoderCore:
             self._renorm_d()
         return decision
 
-    #  Rinormalizzazione Decoder (T.81 §D.2.6 — RENORMD)
+    #  Rinormalizzazione Decoder
 
     def _renorm_d(self):
         """Raddoppia A e C finché A non torna nel range valido.
@@ -420,22 +415,22 @@ class QMCoderCore:
             self.C = (self.C << 1) & 0xFFFFFFFF
             self.CT -= 1
 
-    #  Ingresso byte Decoder (T.81 §D.2.5 — BYTEIN)
+    #  Ingresso byte Decoder
 
     def _byte_in(self):
         """Legge un byte dallo stream e lo carica nel registro C.
 
         Gestisce il byte stuffing JPEG: se il byte letto è 0xFF,
-        il successivo deve essere 0x00 (stuff byte) e viene scartato.
-        Eventuali 0xFF consecutivi sono fill bytes e vengono saltati.
-        Un byte diverso da 0x00 dopo 0xFF indica un marker JPEG inatteso.
+        il successivo deve essere 0x00 (stuff byte) e viene ignorato.
+        Eventuali 0xFF consecutivi sono byte di riempimento e vengono scartati.
+        Un byte diverso da 0x00 dopo 0xFF indica un marker JPEG nel payload.
         """
         b = self._next_byte()
 
         if b == 0xFF:
             b2 = self._next_byte()
 
-            # Salta eventuali fill bytes 0xFF consecutivi
+            # Scarta eventuali byte di riempimento 0xFF consecutivi
             while b2 == 0xFF:
                 b2 = self._next_byte()
 
@@ -449,7 +444,7 @@ class QMCoderCore:
         self.CT = 8
 
 
-#  BINARIZER — Modello statistico per coefficienti DCT (T.81 Annex F)
+#  BINARIZER — Modello statistico per coefficienti DCT
 #
 #  Il Binarizer converte i coefficienti DCT quantizzati in una sequenza
 #  di decisioni binarie, ciascuna associata a un contesto specifico.
@@ -478,7 +473,7 @@ class Binarizer:
         self.prev_dc = 0
         self.prev_dc_diff = 0
 
-    #  Classificazione DC (T.81 Tab. F.1)
+    #  Classificazione DC
 
     def _dc_context(self, Da: int) -> int:
         """Seleziona il contesto base S0 in base alla differenza DC precedente (Da).
@@ -502,20 +497,21 @@ class Binarizer:
 
         return 8 if Da >= -2 else 16
 
-    #  Codifica DC (T.81 §F.1.4.3, Fig. F.3 / F.8 / F.9)
+    #  Codifica DC
 
     def binarize_dc(self, core: QMCoderCore, value: int):
         """Binarizza il coefficiente DC in una sequenza di decisioni.
 
-        Struttura della codifica:
-          1. Differenza DPCM = value - prev_dc
-          2. Decisione zero/non-zero (contesto S0, condizionato da Da)
-          3. Segno (contesto SS = S0 + 1)
-          4. Categoria di magnitudine (contesti SP/SN → X1, X2, ...)
-             codificata come albero binario: si emettono '1' finché
-             v >> 1 ≠ 0, poi uno '0' terminale (Fig. F.8)
-          5. Bit di rifinitura della magnitudine (contesti M, offset +14)
-             specificano la posizione esatta all'interno della categoria (Fig. F.9)
+        Il DC viene codificato come differenza rispetto al blocco precedente (DPCM),
+        e la differenza a sua volta viene decomposta in più decisioni binarie:
+          1. diff = value - prev_dc
+          2. È zero o no? (contesto S0, che dipende dalla diff precedente)
+          3. Segno della diff (contesto SS = S0 + 1)
+          4. Categoria della magnitudine: quanti bit servono per rappresentarla.
+             Emettiamo una serie di '1' fino a trovare la categoria giusta,
+             poi uno '0' come terminatore.
+          5. Bit di rifinitura: precisano il valore esatto all'interno della categoria.
+             I contesti per questi bit sono a offset +14 rispetto alla categoria.
         """
         diff = value - self.prev_dc
         self.prev_dc = value
@@ -539,9 +535,9 @@ class Binarizer:
         # 3. Selezione contesto SP (positivo) o SN (negativo) per la magnitudine
         st = ctx_base + S0 + (3 if sign else 2)
 
-        # 4. Categoria di magnitudine (Fig. F.8)
-        #    v = |diff| - 1: la magnitudine meno 1, usata per la codifica esponenziale.
-        #    m traccia la potenza di 2 della categoria corrente.
+        # 4. Categoria di magnitudine
+        #    Lavoriamo su v = |diff| - 1 (scaliamo di 1 perché la magnitudine minima è 1).
+        #    m tiene traccia della potenza di 2 che corrisponde alla categoria.
         v = abs(diff) - 1
         m = 0
 
@@ -552,7 +548,7 @@ class Binarizer:
             m = 1
             v2 = v
 
-            # Contesti X1, X2, ... per le categorie successive (a partire dall'indice 20)
+            # Per le categorie superiori usiamo contesti dedicati a partire dall'offset 20
             st = ctx_base + 20
 
             while True:
@@ -567,9 +563,9 @@ class Binarizer:
         # Terminatore '0': segnala che la categoria è stata determinata
         core.encode_bin(st, 0)
 
-        # 5. Bit di rifinitura (Fig. F.9)
-        #    Specificano la posizione esatta del valore all'interno della categoria.
-        #    I contesti M sono a offset +14 rispetto ai contesti X.
+        # 5. Bit di rifinitura
+        #    Ora che conosciamo la categoria, emettiamo i bit che specificano
+        #    il valore esatto. I contesti per questa fase sono a +14 dall'ultimo.
         st += 14
 
         m2 = m
@@ -581,10 +577,10 @@ class Binarizer:
             bit = 1 if (m2 & v) else 0
             core.encode_bin(st, bit)
 
-    #  Decodifica DC (T.81 §F.2.4.3, Fig. F.18 / F.23 / F.24)
+    #  Decodifica DC
 
     def debinarize_dc(self, core: QMCoderCore) -> int:
-        """Decodifica il coefficiente DC. Speculare a binarize_dc."""
+        """Decodifica il coefficiente DC. Speculare a binarize_dc"""
         ctx_base = self.DC_CTX_OFFSET
         S0 = self._dc_context(self.prev_dc_diff)
 
@@ -599,8 +595,9 @@ class Binarizer:
         # 3. SP / SN
         st = ctx_base + S0 + (3 if sign else 2)
 
-        # 4. Categoria di magnitudine (Fig. F.23)
-        #    m accumula la potenza di 2 della categoria decodificata
+        # 4. Categoria di magnitudine
+        #    Leggiamo le decisioni finché non troviamo il terminatore '0'.
+        #    m ci dice in quale categoria siamo (potenza di 2 corrispondente).
         m = core.decode_bin(st)
 
         if m:
@@ -614,8 +611,8 @@ class Binarizer:
 
                 st += 1
 
-        # 5. Bit di rifinitura (Fig. F.24)
-        #    v parte da m e accumula i bit di rifinitura tramite OR
+        # 5. Bit di rifinitura
+        #    Partiamo da m e affiniamo il valore bit a bit tramite OR.
         v = m
 
         st += 14
@@ -640,23 +637,24 @@ class Binarizer:
 
         return self.prev_dc
 
-    #  Codifica AC (T.81 §F.1.4.4, Fig. F.4 / F.8 / F.9)
+    #  Codifica AC
 
     def binarize_ac(self, core: QMCoderCore, k: int, is_eob: bool, value: int = 0):
         """Binarizza un coefficiente AC alla posizione zig-zag k.
 
-        Per ogni posizione k (1-63) ci sono tre contesti base (Tab. F.5):
-          - SE = 3*(k-1)    : decisione EOB (fine del blocco)
-          - S0 = SE + 1     : decisione zero/non-zero
-          - S1 = SE + 2     : prima decisione di magnitudine
+        Per ogni posizione k (1-63) usiamo tre contesti base:
+          - SE = 3*(k-1)    : è questo il simbolo EOB? (fine blocco)
+          - S0 = SE + 1     : il coefficiente è zero o no?
+          - S1 = SE + 2     : prima decisione sulla grandezza del valore
 
-        La magnitudine usa la stessa struttura di Fig. F.8/F.9 del DC,
-        con una differenza importante: le prime DUE decisioni di categoria
-        usano lo STESSO contesto S1, e solo dalla terza si passa ai
-        contesti X1/X2 (base 189 per k ≤ Kx, 217 per k > Kx, dove Kx=5).
+        La codifica della magnitudine è simile al DC, con una piccola differenza:
+        le prime due decisioni di categoria condividono lo stesso contesto S1.
+        Dalla terza in poi si usano contesti separati (uno per k <= 5,
+        uno per k > 5, perché i coefficienti alle basse frequenze hanno
+        distribuzioni diverse da quelli ad alta frequenza).
 
-        Il segno viene codificato a probabilità fissa 0.5 (encode_bin_fixed)
-        perché la distribuzione dei segni AC è approssimativamente uniforme.
+        Il segno viene codificato a probabilità fissa 0.5 perché i segni
+        dei coefficienti AC sono praticamente equidistribuiti.
         """
         ctx_base = self.AC_CTX_OFFSET
         k_idx = k - 1
@@ -679,7 +677,7 @@ class Binarizer:
 
         core.encode_bin(ctx_base + S0, 1)
 
-        # 3. Segno a probabilità fissa 0.5 (T.81 §F.1.4.4.1)
+        # 3. Segno a probabilità fissa 0.5
         sign = 1 if value < 0 else 0
         core.encode_bin_fixed(sign)
 
@@ -696,8 +694,8 @@ class Binarizer:
             m = 1
             v2 = v
 
-            # Seconda decisione di categoria: RIUSA lo stesso contesto S1
-            # (peculiarità degli AC rispetto ai DC — T.81 Tab. F.5)
+            # Seconda decisione di categoria: riusiamo lo stesso contesto S1
+            # (a differenza del DC, qui le prime due decisioni condividono il contesto)
             v2 >>= 1
 
             if v2:
@@ -705,8 +703,8 @@ class Binarizer:
 
                 m <<= 1
 
-                # Dalla terza decisione in poi si usano i contesti X1/X2
-                # Kx = 5: soglia tra i due gruppi di contesti (T.81 §F.1.4.4.2)
+                # Dalla terza decisione in poi usiamo un contesto diverso
+                # a seconda della posizione k: basse frequenze (k <= 5) o alte (k > 5)
                 st = ctx_base + (189 if k <= 5 else 217)
 
                 while True:
@@ -722,7 +720,7 @@ class Binarizer:
         # Terminatore '0' della categoria
         core.encode_bin(st, 0)
 
-        # 5. Bit di rifinitura (Fig. F.9), offset +14
+        # 5. Bit di rifinitura (contesti a +14 dall'ultimo usato)
         st += 14
 
         m2 = m
@@ -735,10 +733,10 @@ class Binarizer:
             bit = 1 if (m2 & v) else 0
             core.encode_bin(st, bit)
 
-    #  Decodifica AC (T.81 §F.2.4.4, Fig. F.19 / F.23 / F.24)
+    #  Decodifica AC
 
     def debinarize_ac(self, core: QMCoderCore, k: int) -> Tuple[bool, int]:
-        """Decodifica un coefficiente AC alla posizione k. Speculare a binarize_ac."""
+        """Decodifica un coefficiente AC alla posizione k. Speculare a binarize_ac"""
         ctx_base = self.AC_CTX_OFFSET
         k_idx = k - 1
 
@@ -759,15 +757,15 @@ class Binarizer:
 
         st = ctx_base + S1
 
-        # 4. Categoria di magnitudine (Fig. F.23)
+        # 4. Categoria di magnitudine
         m = core.decode_bin(st)
 
         if m:
-            # Seconda decisione: stesso contesto S1
+            # Seconda decisione: stesso contesto S1 (come in encoding)
             if core.decode_bin(st):
                 m <<= 1
 
-                # Dalla terza in poi: contesti X1/X2
+                # Dalla terza in poi: contesto dipende dalla posizione k
                 st = ctx_base + (189 if k <= 5 else 217)
 
                 while core.decode_bin(st):
@@ -778,7 +776,7 @@ class Binarizer:
 
                     st += 1
 
-        # 5. Bit di rifinitura (Fig. F.24)
+        # 5. Bit di rifinitura
         v = m
 
         st += 14
@@ -802,7 +800,6 @@ class Binarizer:
 
 
 import struct
-
 
 #  QMCoder — Interfaccia di alto livello per la pipeline JPEG
 #

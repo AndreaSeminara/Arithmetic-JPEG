@@ -3,7 +3,7 @@ from utils import ZIGZAG_INDEX
 
 
 def zigzag_scan(block_2d: np.ndarray) -> np.ndarray:
-    # L'ordine zig-zag (T.81 fig. A.6) mette le basse frequenze per prime
+    # L'ordine zig-zag mette le basse frequenze per prime
     # e lascia quelle alte in fondo, dove di solito ci sono lunghe serie di zeri:
     # perfetto per il run-length encoding che viene dopo.
     block_flat = block_2d.flatten()

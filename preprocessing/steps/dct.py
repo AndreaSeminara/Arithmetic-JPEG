@@ -2,7 +2,7 @@ import numpy as np
 
 
 def _build_1d_dct_matrix(N: int = 8) -> np.ndarray:
-    """Precalcola la matrice C della DCT-II ortogonale (T.81 §A.3.3).
+    """Precalcola la matrice C della DCT-II ortogonale.
     Sfrutta la separabilità 2D: DCT(block) = C @ block @ C^T"""
     C = np.zeros((N, N), dtype=np.float32)
     for u in range(N):
