@@ -1,6 +1,7 @@
-# Arithmetic-JPEG
+﻿# Arithmetic-JPEG
 
-An educational JPEG compressor comparing the standard Huffman baseline with Static Arithmetic and Adaptive Arithmetic (QM-Coder) entropy coding
+Compressore JPEG che confronta quattro diversi codificatori Huffman, Aritmetica Statica, Aritmetica con Tabelle e QM-Coder 
+L'obiettivo è capire come cambia l'efficienza di compressione ptra i vari metodi mantenendo invariata tutta la pipeline JPEG sottostante: conversione YCbCr, divisione in blocchi 8×8, DCT, quantizzazione e scan zig-zag.
 
 ## Project Structure
 
@@ -39,3 +40,44 @@ arithmetic_jpeg/
 |
 └── images/             # Immagine di Input e Risultati in Output
 ```
+
+## Installazione
+
+**Con Conda:**
+```bash
+conda env create -f environment.yml
+conda activate arithmetic_jpeg
+```
+
+**Con pip:**
+```bash
+pip install -r requirements.txt
+```
+
+## Utilizzo
+
+```bash
+python main.py [--image_path PATH] [--method N] [--grayscale]
+```
+
+### Flag disponibili
+
+| Flag | Default | Descrizione |
+|------|---------|-------------|
+| `--image_path PATH` | `images/lena.png` | Percorso dell'immagine da elaborare |
+| `--method N` | `0` | Algoritmo di codifica entropica (vedi tabella sotto) |
+| `--grayscale` | — | Se presente, elabora l'immagine in scala di grigi |
+
+### Valori di `--method`
+
+| N | Algoritmo |
+|---|-----------|
+| `0` | Tutti (esegue e confronta tutti e quattro) |
+| `1` | Huffman |
+| `2` | Aritmetica con Tabelle |
+| `3` | Aritmetica Statica |
+| `4` | QM-Coder |
+
+I risultati vengono salvati in `images/output/`, con un file `.png` (immagine ricostruita) e un file `.myjpeg` (bitstream) per ogni algoritmo.
+
+

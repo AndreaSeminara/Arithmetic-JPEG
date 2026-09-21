@@ -1,5 +1,6 @@
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 from .steps import (
     extract_ycbcr_channels,
     get_nxn_blocks,
@@ -65,7 +66,6 @@ def run_pipeline(
         else f"\nAvvio della fase di codifica e decodifica (Tutti i metodi)\n"
     )
 
-    from tqdm import tqdm
 
     methods_to_run = ["huffman", "arithmetic_tables", "arithmetic_static", "qm"] if method == "all" else [method]
 
