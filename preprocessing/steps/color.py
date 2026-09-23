@@ -2,12 +2,22 @@ import numpy as np
 from PIL import Image
 
 
-def rgb_to_ycbcr(img: Image.Image) -> Image.Image:
-    # PIL usa la conversione BT.601 studio swing, che è quella prevista dallo standard JPEG
+def rgb_to_ycbcr(img: Image.Image) -> dict[str, np.ndarray]:
+    if img is None:
+        raise ValueError(
+            "Immagine non valida. Assicurati di fornire un'immagine valida."
+        )
     if img.mode != "RGB":
         raise ValueError("L'immagine deve essere in formato RGB.")
 
-    return img.convert("YCbCr")
+    img = img.convert("YCbCr")
+
+    y, cb, cr = img.split()
+    return {
+        "Y": np.array(y, dtype=np.float32),
+        "Cb": np.array(cb, dtype=np.float32),
+        "Cr": np.array(cr, dtype=np.float32),
+    }
 
 
 def ycbcr_to_rgb(y: np.ndarray, cb: np.ndarray, cr: np.ndarray) -> Image.Image:
@@ -22,19 +32,3 @@ def ycbcr_to_rgb(y: np.ndarray, cb: np.ndarray, cr: np.ndarray) -> Image.Image:
     ycbcr_img = Image.merge("YCbCr", (y_img, cb_img, cr_img))
 
     return ycbcr_img.convert("RGB")
-
-
-def extract_ycbcr_channels(img: Image.Image) -> dict[str, np.ndarray]:
-    if img is None:
-        raise ValueError(
-            "Immagine non valida. Assicurati di fornire un'immagine valida."
-        )
-
-    img = rgb_to_ycbcr(img)
-
-    y, cb, cr = img.split()
-    return {
-        "Y": np.array(y, dtype=np.float32),
-        "Cb": np.array(cb, dtype=np.float32),
-        "Cr": np.array(cr, dtype=np.float32),
-    }

@@ -1,8 +1,9 @@
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+
 from .steps import (
-    extract_ycbcr_channels,
+    rgb_to_ycbcr,
     get_nxn_blocks,
     dct,
     quantize_block,
@@ -38,7 +39,7 @@ def run_pipeline(
         print("Immagine a colori...")
         if img.mode != "RGB":
             img = img.convert("RGB")
-        channels = extract_ycbcr_channels(img)
+        channels = rgb_to_ycbcr(img)
 
     processed_blocks_by_channel = {}
 
@@ -66,8 +67,11 @@ def run_pipeline(
         else f"\nAvvio della fase di codifica e decodifica (Tutti i metodi)\n"
     )
 
-
-    methods_to_run = ["huffman", "arithmetic_tables", "arithmetic_static", "qm"] if method == "all" else [method]
+    methods_to_run = (
+        ["huffman", "arithmetic_tables", "arithmetic_static", "qm"]
+        if method == "all"
+        else [method]
+    )
 
     compressed_streams = {}
     custom_tables_dict = {}
@@ -78,13 +82,23 @@ def run_pipeline(
     }
 
     for m in methods_to_run:
-        if m == "huffman": algo_name = "Huffman"
-        elif m == "arithmetic_tables": algo_name = "Aritmetica Standard"
-        elif m == "arithmetic_static": algo_name = "Aritmetica Statica"
-        elif m == "qm": algo_name = "QM"
-        else: algo_name = m.upper()
+        if m == "huffman":
+            algo_name = "Huffman"
+        elif m == "arithmetic_tables":
+            algo_name = "Aritmetica Standard"
+        elif m == "arithmetic_static":
+            algo_name = "Aritmetica Statica"
+        elif m == "qm":
+            algo_name = "QM"
+        else:
+            algo_name = m.upper()
 
-        pbar = tqdm(total=100, desc=f"Codifica {algo_name}", leave=True, bar_format="{l_bar}{bar}| {n_fmt}%")
+        pbar = tqdm(
+            total=100,
+            desc=f"Codifica {algo_name}",
+            leave=True,
+            bar_format="{l_bar}{bar}| {n_fmt}%",
+        )
 
         # --- Codifica ---
         stream, tables = encode_blocks(processed_blocks_by_channel, method=m)
