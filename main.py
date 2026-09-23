@@ -1,9 +1,8 @@
 import argparse
 import os
 from PIL import Image
-from encoding import load_custom_jpeg, save_custom_jpeg
 from preprocessing import run_pipeline
-from utils import modes
+from utils import modes, load_custom_jpeg, save_custom_jpeg
 
 ALGORITHMS_FLAGS = {
     "huffman": 0,
@@ -61,7 +60,7 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
             tables_for_save = (
                 custom_tables.get(alg_name) if method == "all" else custom_tables
             )
-            
+
             # Salva anche il .bin puro per mostrare la differenza di dimensione
             bin_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.bin")
             try:
@@ -69,7 +68,9 @@ def main(image_path: str, grayscale: bool = False, method: str = "huffman") -> N
                     f_bin.write(stream)
                 print(f"  [OK] Bitstream puro salvato in: {bin_filename}")
             except Exception as exc_bin:
-                print(f"  [ERRORE] Salvataggio .bin fallito ({bin_filename}): {exc_bin}")
+                print(
+                    f"  [ERRORE] Salvataggio .bin fallito ({bin_filename}): {exc_bin}"
+                )
 
         container_filename = os.path.join(output_dir, f"{base_name}_{alg_name}.myjpeg")
 
