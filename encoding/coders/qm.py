@@ -158,7 +158,7 @@ class QMCoderCore:
         temp = t & 0xFF
 
         if t > 0xFF:
-            # ---- Carry rilevato ----
+            # Carry rilevato
             if self.B >= 0:
                 # Emette gli eventuali 0x00 accumulati prima del byte pendente
                 if self.ZC:
@@ -179,13 +179,13 @@ class QMCoderCore:
             self.B = temp
 
         elif temp == 0xFF:
-            # ---- Byte 0xFF: accumulalo nello stack ----
+            # Byte 0xFF: accumulalo nello stack
             # Non possiamo emetterlo ora perché un carry futuro
             # potrebbe propagarsi attraverso di esso
             self.SC += 1
 
         else:
-            # ---- Byte normale: ora possiamo emettere tutto ----
+            # Byte normale: ora possiamo emettere tutto
             if self.B == 0:
                 # Gli 0x00 vengono contati in ZC per evitare emissioni premature
                 self.ZC += 1
@@ -239,7 +239,7 @@ class QMCoderCore:
         # Shifta C per i bit rimanenti nel contatore CT
         self.C = (self.C << self.CT) & 0xFFFFFFFF
 
-        # --- Gestione carry finale ---
+        #  Gestione carry finale
         # I bit alti di C (27-23) indicano se c'è stato un carry
         if self.C & 0xF8000000:
             # Carry presente: stessa logica di _byte_out ramo carry
@@ -281,7 +281,7 @@ class QMCoderCore:
                     self._out.append(0xFF)
                     self._out.append(0x00)
 
-        # --- Emissione degli ultimi byte significativi ---
+        #  Emissione degli ultimi byte significativi
         # Vengono scritti solo i byte con informazione utile,
         # omettendo gli 0x00 finali che il decoder non deve leggere.
         if self.C & 0x7FFF800:

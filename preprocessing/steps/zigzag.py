@@ -4,8 +4,7 @@ from utils import ZIGZAG_INDEX
 
 def zigzag_scan(block_2d: np.ndarray) -> np.ndarray:
     # L'ordine zig-zag mette le basse frequenze per prime
-    # e lascia quelle alte in fondo, dove di solito ci sono lunghe serie di zeri:
-    # perfetto per il run-length encoding che viene dopo.
+    # e lascia quelle alte in fondo, dove di solito ci sono lunghe serie di zeri
     block_flat = block_2d.flatten()
     block_1d = np.zeros(64, dtype=np.float32)
 

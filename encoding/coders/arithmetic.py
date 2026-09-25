@@ -13,7 +13,7 @@ from utils.tables import (
 )
 from .base import EntropyEncoder, EntropyDecoder
 
-# --- Core Aritmetico (Aritmetica intera a 32-bit) ---
+#  Core Aritmetico (Aritmetica intera a 32-bit)
 # Lavoriamo con interi enormi invece dei float per evitare che
 # l'arrotondamento faccia sbagliare il decoder (drifting)
 
@@ -145,7 +145,7 @@ class ArithDecoderCore:
                 break
 
 
-# --- Standard Aritmetico (T.81) ---
+#  Standard Aritmetico (T.81)
 
 
 class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
@@ -279,7 +279,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
         for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
-            # --- Lettura del DC ---
+            #  Lettura del DC
             target, rng = core.get_offset()
             dc_size = self._find_sym(target, rng, dc_cdf)
             core.update(dc_cdf[dc_size])
@@ -297,7 +297,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
             prev_dc += self._dec_val(dc_size, dc_bits)
             block[0] = prev_dc
 
-            # --- Lettura degli AC ---
+            #  Lettura degli AC
             idx = 1
             while idx < 64:
                 target, rng = core.get_offset()
@@ -331,7 +331,7 @@ class ArithmeticStandard(EntropyEncoder, EntropyDecoder):
         return blocks, 4 + data_len
 
 
-# --- Aritmetica Statica (Dinamica su immagine) ---
+#  Aritmetica Statica (Dinamica su immagine)
 
 
 class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
@@ -481,7 +481,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
         for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
-            # --- Lettura DC ---
+            #  Lettura DC
             target, rng = core.get_offset()
             dc_size = self._find_sym(target, rng, self.dc_cdf)
             core.update(self.dc_cdf[dc_size])
@@ -499,7 +499,7 @@ class ArithmeticStatic(EntropyEncoder, EntropyDecoder):
             prev_dc += self._dec_val(dc_size, dc_bits)
             block[0] = prev_dc
 
-            # --- Lettura AC ---
+            #  Lettura AC
             idx = 1
             while idx < 64:
                 target, rng = core.get_offset()

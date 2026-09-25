@@ -58,7 +58,7 @@ STD_CHROMA_QMAT = np.array(
 #  TABELLE DI HUFFMAN
 # =====================================================================
 
-# --- LUMINANZA ---
+#  LUMINANZA 
 
 # DC
 STD_DC_LUMA_BITS = [0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
@@ -90,7 +90,7 @@ STD_AC_LUMA_VALS = [
     0xF9, 0xFA
 ]
 
-# --- CROMINANZA ---
+#  CROMINANZA 
 
 # DC
 STD_DC_CHROMA_BITS = [0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]

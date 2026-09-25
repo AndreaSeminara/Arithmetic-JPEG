@@ -29,7 +29,7 @@ def run_pipeline(
         print("Errore: Immagine non valida. Assicurati di fornire un'immagine valida.")
         return None
 
-    # --- Preprocessing ---
+    #  Preprocessing
 
     if grayscale or img.mode == "L":
         print("Immagine in scala di grigi...")
@@ -100,7 +100,7 @@ def run_pipeline(
             bar_format="{l_bar}{bar}| {n_fmt}%",
         )
 
-        # --- Codifica ---
+        #  Codifica
         stream, tables = encode_blocks(processed_blocks_by_channel, method=m)
         compressed_streams[m] = stream
         if tables is not None:
@@ -108,7 +108,7 @@ def run_pipeline(
 
         pbar.update(50)
 
-        # --- Decodifica ---
+        #  Decodifica
         tables_for_decode = tables if m == "arithmetic_static" else None
         decoded_blocks_by_channel = decode_blocks(
             stream, blocks_layout, method=m, custom_tables=tables_for_decode

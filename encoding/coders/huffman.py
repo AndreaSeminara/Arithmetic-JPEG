@@ -63,7 +63,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
         ac_table = self.ac_luma if is_luma else self.ac_chroma
 
         for block in blocks:
-            # 1. DC: si salva solo la differenza col blocco precedente (DPCM)
+            #  DC: si salva solo la differenza col blocco precedente (DPCM)
             dc_val = int(block[0])
             diff = dc_val - prev_dc
             prev_dc = dc_val
@@ -72,7 +72,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
             self.bit_str += dc_table[dc_size]  # Prefisso Huffman
             self.bit_str += dc_bits  # Bit effettivi del valore
 
-            # 2. AC: Run-Length Encoding (zeri consecutivi)
+            #  AC: Run-Length Encoding (zeri consecutivi)
             run = 0
             for ac_val in block[1:]:
                 ac_val = int(ac_val)
@@ -148,7 +148,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
         for _ in range(num_blocks):
             block = np.zeros(64, dtype=np.float32)
 
-            # --- Lettura DC ---
+            #  Lettura DC
             code = ""
             while True:
                 # Leggiamo un bit alla volta finché non troviamo una corrispondenza nel dizionario Huffman
@@ -168,7 +168,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
             prev_dc += dc_diff
             block[0] = prev_dc
 
-            # --- Lettura AC ---
+            #  Lettura AC
             ac_idx = 1
             while ac_idx < 64:
                 code = ""
