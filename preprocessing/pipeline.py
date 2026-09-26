@@ -29,6 +29,8 @@ def run_pipeline(
         print("Errore: Immagine non valida. Assicurati di fornire un'immagine valida.")
         return None
 
+    original_alpha = img.getchannel("A").copy() if "A" in img.getbands() else None
+
     #  Preprocessing
 
     if grayscale or img.mode == "L":
@@ -143,6 +145,11 @@ def run_pipeline(
                 reconstructed_channels["Cb"],
                 reconstructed_channels["Cr"],
             )
+
+        if original_alpha is not None:
+            alpha_mode = "LA" if final_img.mode == "L" else "RGBA"
+            final_img = final_img.convert(alpha_mode)
+            final_img.putalpha(original_alpha)
 
         reconstructed_images[m] = final_img
 
