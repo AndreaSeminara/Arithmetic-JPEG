@@ -23,7 +23,7 @@ class ArithEncoderCore:
         self.low = 0
         self.high = 0xFFFFFFFF  # Rappresenta 1.0 in aritmetica intera a 32 bit
         self.underflow = 0  # Contatore di underflow: bit in sospeso quando l'intervallo cade nella zona centrale
-        self.bit_str = ""
+        self.bits = []
 
     def update(self, bounds):
         # Restringe l'intervallo in base alla probabilità del simbolo corrente.
@@ -71,8 +71,8 @@ class ArithEncoderCore:
     def _emit(self, bit):
         # Scrive il bit confermato e aggiunge il complemento per
         # tutti i bit di underflow rimasti in sospeso
-        self.bit_str += str(bit)
-        self.bit_str += str(1 - bit) * self.underflow
+        self.bits.append(str(bit))
+        self.bits.extend([str(1 - bit)] * self.underflow)
         self.underflow = 0
 
     def finish(self):
@@ -85,8 +85,8 @@ class ArithEncoderCore:
 
         # Aggiunge 32 zeri finali così il decoder ha abbastanza bit da leggere
         # senza andare oltre il segmento corrente.
-        self.bit_str += "0" * 32
-        return self.bit_str
+        self.bits.extend(["0"] * 32)
+        return "".join(self.bits)
 
 
 class ArithDecoderCore:
