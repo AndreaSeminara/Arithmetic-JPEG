@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from PIL import Image
 from tqdm import tqdm
 
@@ -94,6 +95,8 @@ def run_pipeline(
             algo_name = "QM"
         else:
             algo_name = m.upper()
+        
+        start_time = time.time()
 
         pbar = tqdm(
             total=100,
@@ -155,6 +158,9 @@ def run_pipeline(
 
         pbar.update(50)
         pbar.close()
+
+        elapsed_time = time.time() - start_time
+        print(f"Tempo di esecuzione {algo_name}: {elapsed_time:.2f} secondi\n")
 
     if method == "all":
         final_stream = compressed_streams
