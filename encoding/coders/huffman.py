@@ -41,7 +41,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
     # Implementazione classica JPEG con tabelle fisse.
 
     def __init__(self):
-        self.bit_str = ""
+        self.bit_list = []
 
         # Tabelle per codificare (Simbolo -> Bits)
         self.dc_luma = build_huffman_dict(STD_DC_LUMA_BITS, STD_DC_LUMA_VALS)
@@ -56,7 +56,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
         self.ac_chroma_dec = {v: k for k, v in self.ac_chroma.items()}
 
     def encode(self, blocks, is_luma=True):
-        self.bit_str = ""
+        self.bit_list = []
         prev_dc = 0
 
         dc_table = self.dc_luma if is_luma else self.dc_chroma
@@ -69,8 +69,8 @@ class Huffman(EntropyEncoder, EntropyDecoder):
             prev_dc = dc_val
 
             dc_size, dc_bits = self._get_cat_and_bits(diff)
-            self.bit_str += dc_table[dc_size]  # Prefisso Huffman
-            self.bit_str += dc_bits  # Bit effettivi del valore
+            self.bit_list.append(dc_table[dc_size])  # Prefisso Huffman
+            self.bit_list.append(dc_bits)  # Bit effettivi del valore
 
             #  AC: Run-Length Encoding (zeri consecutivi)
             run = 0
@@ -81,19 +81,19 @@ class Huffman(EntropyEncoder, EntropyDecoder):
                     run += 1
                     if run == 16:
                         # ZRL: 16 zeri consecutivi, il contatore viene azzerato
-                        self.bit_str += ac_table[0xF0]
+                        self.bit_list.append(ac_table[0xF0])
                         run = 0
                 else:
                     ac_size, ac_bits = self._get_cat_and_bits(ac_val)
                     ac_key = (run << 4) | ac_size  # Uniamo RUN e SIZE in un solo byte
 
-                    self.bit_str += ac_table[ac_key]
-                    self.bit_str += ac_bits
+                    self.bit_list.append(ac_table[ac_key])
+                    self.bit_list.append(ac_bits)
                     run = 0
 
             if run > 0:
                 # EOB: Fine del blocco, il resto è tutto zero
-                self.bit_str += ac_table[0x00]
+                self.bit_list.append(ac_table[0x00])
 
         return self._pack_bytes()
 
@@ -117,6 +117,7 @@ class Huffman(EntropyEncoder, EntropyDecoder):
     def _pack_bytes(self):
         # Converte la sequenza continua di bit ("0" e "1") in byte effettivi.
         # Nello standard JPEG, il padding finale si fa con "1" (bit a 1).
+        self.bit_str = "".join(self.bit_list)
         rem = len(self.bit_str) % 8
         if rem != 0:
             self.bit_str += "1" * (8 - rem)
