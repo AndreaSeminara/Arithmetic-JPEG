@@ -60,20 +60,43 @@ class QMCoderCore:
         """Carica i primi byte nel registro C per avviare la decodifica"""
         self._in = stream
         self._in_idx = 0
-        self.B = self._next_byte()
-        self.C = self.B << 16
-        self._byte_in()
-        self.C = (self.C << 8) & 0xFFFFFFFF
-        self.CT -= 8
+
+        b1 = self._read_stuffed_byte()
+        b2 = self._read_stuffed_byte()
+
+        self.C = (b1 << 24) + (b2 << 16)
+        self.CT = 0
         self.A = 0x10000
 
-    def _next_byte(self) -> int:
-        """Legge il prossimo byte dallo stream. Restituisce 0 se esaurito"""
-        if self._in_idx < len(self._in):
-            b = self._in[self._in_idx]
-            self._in_idx += 1
-            return b
-        return 0
+    def _read_stuffed_byte(self) -> int:
+        """Legge il prossimo byte risolvendo il byte stuffing (0xFF 0x00 -> 0xFF)."""
+        if self._in_idx >= len(self._in):
+            return 0x00
+
+        b = self._in[self._in_idx]
+        self._in_idx += 1
+
+        if b == 0xFF:
+            if self._in_idx >= len(self._in):
+                return 0x00
+
+            b2 = self._in[self._in_idx]
+
+            while b2 == 0xFF:
+                self._in_idx += 1
+                if self._in_idx >= len(self._in):
+                    return 0xFF
+                b2 = self._in[self._in_idx]
+
+            if b2 == 0x00:
+                self._in_idx += 1
+                return 0xFF
+            else:
+                raise ValueError(
+                    f"Marker JPEG non supportato trovato nel QM Coder: {hex(b2)}"
+                )
+
+        return b
 
     #  Codifica binaria adattiva
 
@@ -238,71 +261,29 @@ class QMCoderCore:
 
         # Shifta C per i bit rimanenti nel contatore CT
         self.C = (self.C << self.CT) & 0xFFFFFFFF
+        self._byte_out()
+        self.C = (self.C << 8) & 0xFFFFFFFF
+        self._byte_out()
 
-        #  Gestione carry finale
-        # I bit alti di C (27-23) indicano se c'è stato un carry
-        if self.C & 0xF8000000:
-            # Carry presente: stessa logica di _byte_out ramo carry
-            if self.B >= 0:
-                if self.ZC:
-                    for _ in range(self.ZC):
-                        self._out.append(0x00)
-                    self.ZC = 0
-
-                self._out.append(self.B + 1)
-
-                if self.B + 1 == 0xFF:
-                    self._out.append(0x00)
-
-            # Gli 0xFF pendenti diventano 0x00 per il carry
-            self.ZC += self.SC
-            self.SC = 0
-
-        else:
-            # Nessun carry: emetti B e lo stack come in _byte_out
-            if self.B == 0:
-                self.ZC += 1
-
-            elif self.B >= 0:
-                if self.ZC:
-                    for _ in range(self.ZC):
-                        self._out.append(0x00)
-                    self.ZC = 0
-
-                self._out.append(self.B)
-
-            if self.SC:
-                if self.ZC:
-                    for _ in range(self.ZC):
-                        self._out.append(0x00)
-                    self.ZC = 0
-
-                for _ in range(self.SC):
-                    self._out.append(0xFF)
-                    self._out.append(0x00)
-
-        #  Emissione degli ultimi byte significativi
-        # Vengono scritti solo i byte con informazione utile,
-        # omettendo gli 0x00 finali che il decoder non deve leggere.
-        if self.C & 0x7FFF800:
+        if self.B >= 0:
             if self.ZC:
                 for _ in range(self.ZC):
                     self._out.append(0x00)
                 self.ZC = 0
+            self._out.append(self.B)
 
-            b = (self.C >> 19) & 0xFF
-            self._out.append(b)
-
-            if b == 0xFF:
-                self._out.append(0x00)
-
-            # Secondo byte residuo, se significativo
-            if self.C & 0x7F800:
-                b = (self.C >> 11) & 0xFF
-                self._out.append(b)
-
-                if b == 0xFF:
+        if self.SC:
+            if self.ZC:
+                for _ in range(self.ZC):
                     self._out.append(0x00)
+                self.ZC = 0
+            for _ in range(self.SC):
+                self._out.append(0xFF)
+                self._out.append(0x00)
+            self.SC = 0
+
+        while len(self._out) > 0 and self._out[-1] == 0x00:
+            self._out.pop()
 
         return bytes(self._out)
 
@@ -418,28 +399,8 @@ class QMCoderCore:
     #  Ingresso byte Decoder
 
     def _byte_in(self):
-        """Legge un byte dallo stream e lo carica nel registro C.
-
-        Gestisce il byte stuffing JPEG: se il byte letto è 0xFF,
-        il successivo deve essere 0x00 (stuff byte) e viene ignorato.
-        Eventuali 0xFF consecutivi sono byte di riempimento e vengono scartati.
-        Un byte diverso da 0x00 dopo 0xFF indica un marker JPEG nel payload.
-        """
-        b = self._next_byte()
-
-        if b == 0xFF:
-            b2 = self._next_byte()
-
-            # Scarta eventuali byte di riempimento 0xFF consecutivi
-            while b2 == 0xFF:
-                b2 = self._next_byte()
-
-            if b2 == 0x00:
-                # Byte stuffing: il vero byte è 0xFF, lo 0x00 viene scartato
-                b = 0xFF
-            else:
-                raise ValueError("Unexpected JPEG marker in QM payload")
-
+        """Legge un byte dallo stream e lo carica nel registro C."""
+        b = self._read_stuffed_byte()
         self.C = (self.C + (b << 8)) & 0xFFFFFFFF
         self.CT = 8
 
@@ -866,7 +827,7 @@ class QMCoder(EntropyEncoder, EntropyDecoder):
 
         blocks_out = []
         for _ in range(num_blocks):
-            block = np.zeros(64, dtype=np.int32)
+            block = np.zeros(64, dtype=np.float32)
 
             block[0] = binarizer.debinarize_dc(core)
 
