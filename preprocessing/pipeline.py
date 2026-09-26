@@ -95,8 +95,6 @@ def run_pipeline(
             algo_name = "QM"
         else:
             algo_name = m.upper()
-        
-        start_time = time.time()
 
         pbar = tqdm(
             total=100,
@@ -106,7 +104,10 @@ def run_pipeline(
         )
 
         #  Codifica
+        start_enc = time.time()
         stream, tables = encode_blocks(processed_blocks_by_channel, method=m)
+        encoding_time = time.time() - start_enc
+
         compressed_streams[m] = stream
         if tables is not None:
             custom_tables_dict[m] = tables
@@ -114,10 +115,12 @@ def run_pipeline(
         pbar.update(50)
 
         #  Decodifica
+        start_dec = time.time()
         tables_for_decode = tables if m == "arithmetic_static" else None
         decoded_blocks_by_channel = decode_blocks(
             stream, blocks_layout, method=m, custom_tables=tables_for_decode
         )
+        decoding_time = time.time() - start_dec
 
         reconstructed_channels = {}
         for channel_name, blocks in decoded_blocks_by_channel.items():
@@ -159,8 +162,9 @@ def run_pipeline(
         pbar.update(50)
         pbar.close()
 
-        elapsed_time = time.time() - start_time
-        print(f"Tempo di esecuzione {algo_name}: {elapsed_time:.2f} secondi\n")
+        print(
+            f"[{algo_name}] Codifica: {encoding_time:.2f}s | Decodifica: {decoding_time:.2f}s"
+        )
 
     if method == "all":
         final_stream = compressed_streams
