@@ -122,6 +122,40 @@ def run_pipeline(
         )
         decoding_time = time.time() - start_dec
 
+        # Verifica uguaglianza dei coefficienti tra codifica e decodifica
+        coeff_match = True
+
+        for ch, orig_blocks in processed_blocks_by_channel.items():
+            dec_blocks = decoded_blocks_by_channel.get(ch, [])
+
+            if len(orig_blocks) != len(dec_blocks):
+                print(f"[{algo_name}] {ch}: numero blocchi diverso")
+                coeff_match = False
+                break
+
+            for i, (ob, db) in enumerate(zip(orig_blocks, dec_blocks)):
+                if not np.array_equal(ob, db):
+                    print(f"[{algo_name}] {ch}: differenza nel blocco {i}")
+                    coeff_match = False
+                    break
+
+            if not coeff_match:
+                break
+
+        pbar.update(50)
+        pbar.close()
+
+        print(
+            f"[{algo_name}] Codifica: {encoding_time:.2f}s | Decodifica: {decoding_time:.2f}s"
+        )
+
+        if coeff_match:
+            print(f"[{algo_name}] Verifica Coefficienti: OK (Tutti uguali)\n")
+        else:
+            print(
+                f"[{algo_name}] Verifica Coefficienti: FALLITA (Differenze trovate!)\n"
+            )
+
         reconstructed_channels = {}
         for channel_name, blocks in decoded_blocks_by_channel.items():
             is_luma = channel_name == "Y"
@@ -158,13 +192,6 @@ def run_pipeline(
             final_img.putalpha(original_alpha)
 
         reconstructed_images[m] = final_img
-
-        pbar.update(50)
-        pbar.close()
-
-        print(
-            f"[{algo_name}] Codifica: {encoding_time:.2f}s | Decodifica: {decoding_time:.2f}s"
-        )
 
     if method == "all":
         final_stream = compressed_streams
