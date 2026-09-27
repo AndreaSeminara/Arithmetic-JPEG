@@ -440,7 +440,7 @@ class Binarizer:
         """Seleziona il contesto base S0 in base alla differenza DC precedente (Da).
 
         Lo standard definisce 5 categorie di conditioning basate su Da
-        e i parametri L, U (configurabili via marker DAC, qui U=2):
+        e i parametri L, U:
           - Da == 0         → contesto 0  (nessuna differenza)
           - 0 < Da ≤ U      → contesto 4  (piccola positiva)
           - Da > U           → contesto 12 (grande positiva)
@@ -454,9 +454,9 @@ class Binarizer:
             return 0
 
         if Da > 0:
-            return 4 if Da <= 2 else 12
+            return 4 if Da <= 1 else 12
 
-        return 8 if Da >= -2 else 16
+        return 8 if Da >= -1 else 16
 
     #  Codifica DC
 

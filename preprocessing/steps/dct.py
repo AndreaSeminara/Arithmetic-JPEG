@@ -30,6 +30,6 @@ def inv_dct(block: np.ndarray) -> np.ndarray:
     if block.shape != (8, 8):
         raise ValueError("Il blocco deve essere di dimensione 8x8.")
 
-    # C^T @ block @ C inverte esattamente la trasformata;
+    # C^T @ block @ C inverte la trasformata;
     # si ripristina il bias di 128 rimosso in fase di codifica.
     return np.dot(np.dot(DCT_MTX.T, block), DCT_MTX) + 128.0
