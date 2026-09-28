@@ -7,7 +7,8 @@ def get_nxn_blocks(
     channel_data: np.ndarray, block_size: int = DIM_BLOCK
 ) -> tuple[list[np.ndarray], int, int]:
     """Taglia il canale in blocchi block_size x block_size.
-    Ritorna la lista di blocchi, il padding aggiunto in altezza e quello in larghezza."""
+    Ritorna la lista di blocchi, il padding aggiunto in altezza e quello in larghezza.
+    """
     if channel_data.ndim != 2:
         raise ValueError("Il canale dell'immagine deve essere una matrice 2D.")
 
@@ -34,9 +35,9 @@ def reassemble_blocks(
     reconstructed = np.zeros((padded_h, padded_w), dtype=np.float32)
 
     idx = 0
-    for i in range(0, padded_h, 8):
-        for j in range(0, padded_w, 8):
-            reconstructed[i : i + 8, j : j + 8] = blocks[idx]
+    for i in range(0, padded_h, DIM_BLOCK):
+        for j in range(0, padded_w, DIM_BLOCK):
+            reconstructed[i : i + DIM_BLOCK, j : j + DIM_BLOCK] = blocks[idx]
             idx += 1
 
     return reconstructed[:h, :w]
