@@ -136,7 +136,6 @@ class Huffman(EntropyEncoder, EntropyDecoder):
         return int(bits, 2) - (1 << size) + 1
 
     def decode(self, byte_stream, num_blocks, is_luma=True, custom_tables=None):
-        # Nota: custom_tables è qui per rispettare l'interfaccia Base, ma Huffman usa le fisse.
         bit_str = "".join(f"{b:08b}" for b in byte_stream)
         idx = 0
 
